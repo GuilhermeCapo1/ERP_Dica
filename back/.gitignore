@@ -1,0 +1,36 @@
+node_modules/
+package-lock.json
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.staging
+.env.uat
+.env.ci
+.env.local
+.generated/
+prisma/
+build/
+.next/
+logs/
+/tmp/
+
+# IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Build
+/dist/
+/out/
+/build/
+
+# Cache
+/cache/
+
+# Other
+*.log
+*.tmp
+*.swp
+*.swo
