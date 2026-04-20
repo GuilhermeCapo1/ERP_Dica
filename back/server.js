@@ -5,19 +5,42 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
 import 'dotenv/config';
+import multer from 'multer'
+import path from 'path'
+import fs from 'fs'
 
 const prisma = new PrismaClient();
 const app = express();
 
 // Permite requisições do frontend (ajustar a origin quando o frontend subir)
 app.use(cors({
-    origin: 'http://localhost:3001',
-    credentials: true // necessário para envio de cookies entre origens
+    origin: 'http://localhost:5173',
+    credentials: true
 }));
 app.use(express.json());     // interpreta o body das requisições como JSON
 app.use(cookieParser());     // permite ler cookies nas requisições
 
+const uploadDir = './uploads'
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir)
 
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => {
+        const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`
+        cb(null, `${unique}${path.extname(file.originalname)}`)
+    }
+})
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|pdf/
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase())
+    if (ext) return cb(null, true)
+    cb(new Error('Apenas imagens e PDFs são permitidos'))
+  }
+})
 /**
  * POST /cadastro
  * Cria um novo usuário no banco de dados.
@@ -202,5 +225,109 @@ app.delete('/usuarios/:id', authMiddleware, async (req, res) => {
     }
 });
 
+// PROJETOS
+app.get('/projetos', authMiddleware, async (req, res) => {
+    const { status, responsavelId, cliente } = req.query
+    const where = {}
+    if (status) where.status = status
+    if (responsavelId) where.responsavelId = responsavelId
+    if (cliente) where.cliente = { contains: cliente, mode: 'insensitive' }
+
+    const projetos = await prisma.projeto.findMany({
+        where,
+        include: { responsavel: { select: { id: true, name: true, cargo: true } } },
+        orderBy: { criadoEm: 'desc' }
+    })
+    res.json(projetos)
+})
+
+app.post('/projetos', authMiddleware, async (req, res) => {
+    const { cliente, feira, metragem, datas, local, briefing, dataLimite, tipo } = req.body
+    if (!cliente || !feira || !metragem || !datas || !local) {
+        return res.status(400).json({ message: 'Todos os campos são obrigatórios' })
+    }
+    try {
+        const projeto = await prisma.projeto.create({
+            data: {
+                nome: `${cliente} - ${feira}`,
+                cliente, feira, metragem, datas, local, briefing, tipo,
+                dataLimite: dataLimite ? new Date(dataLimite) : null,
+                responsavelId: req.userId,
+                status: 'Recebido'
+            }
+        })
+        res.status(201).json(projeto)
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ message: 'Erro ao criar projeto' })
+    }
+})
+
+app.put('/projetos/:id', authMiddleware, async (req, res) => {
+    try {
+        const projeto = await prisma.projeto.update({
+            where: { id: req.params.id },
+            data: req.body
+        })
+        res.json(projeto)
+    } catch (error) {
+        res.status(500).json({ message: 'Erro ao atualizar projeto' })
+    }
+})
+
+app.patch('/projetos/:id/status', authMiddleware, async (req, res) => {
+    const { status } = req.body
+    const statusValidos = ['Recebido', 'Em criação', 'Memorial', 'Precificação', 'Enviado', 'Aprovado']
+    if (!statusValidos.includes(status)) {
+        return res.status(400).json({ message: 'Status inválido' })
+    }
+    try {
+        const projeto = await prisma.projeto.update({
+            where: { id: req.params.id },
+            data: { status }
+        })
+        res.json(projeto)
+    } catch (error) {
+        res.status(500).json({ message: 'Erro ao atualizar status' })
+    }
+})
+
+app.delete('/projetos/:id', authMiddleware, async (req, res) => {
+    try {
+        await prisma.projeto.delete({ where: { id: req.params.id } })
+        res.json({ message: 'Projeto deletado com sucesso' })
+    } catch (error) {
+        res.status(500).json({ message: 'Erro ao deletar projeto' })
+    }
+})
+
+// Servir arquivos estáticos
+app.use('/uploads', express.static('uploads'))
+
+// Upload de arquivos do projeto
+app.post('/projetos/:id/arquivos', authMiddleware, upload.fields([
+    { name: 'manual', maxCount: 1 },
+    { name: 'mapa', maxCount: 1 },
+    { name: 'logos', maxCount: 5 },
+    { name: 'briefing', maxCount: 1 },
+]), async (req, res) => {
+    try {
+        const arquivos = {}
+        if (req.files?.manual) arquivos.manual = req.files.manual[0].filename
+        if (req.files?.mapa) arquivos.mapa = req.files.mapa[0].filename
+        if (req.files?.logos) arquivos.logos = req.files.logos.map(f => f.filename)
+        if (req.files?.briefing) arquivos.briefing = req.files.briefing[0].filename
+
+        await prisma.projeto.update({
+            where: { id: req.params.id },
+            data: { arquivos: JSON.stringify(arquivos) }
+        })
+
+        res.json({ message: 'Arquivos enviados com sucesso', arquivos })
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ message: 'Erro ao salvar arquivos' })
+    }
+})
 
 app.listen(3001, () => console.log('Servidor rodando na porta 3001'));
