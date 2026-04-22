@@ -8,10 +8,8 @@ package-lock.json
 .env.staging
 .env.uat
 .env.ci
-.env.local
 .generated/
-prisma/
-build/
+prisma/migrations/
 .next/
 logs/
 /tmp/
