@@ -11,6 +11,9 @@ const Projetos = lazy(() => import('./pages/Projetos'))
 const Memorial = lazy(() => import('./pages/Memorial'))
 const Orcamentos = lazy(() => import('./pages/Orcamentos'))
 
+// Páginas ainda não implementadas — usam o placeholder EmConstrucao
+const EmConstrucao = lazy(() => import('./pages/EmConstrucao'))
+
 function LoadingFallback() {
     return (
         <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -30,10 +33,19 @@ function App() {
                     <Route path="/" element={<Navigate to="/login" />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/cadastro" element={<Cadastro />} />
+
+                    {/* Páginas implementadas */}
                     <Route path="/dashboard" element={<RotaProtegida><Dashboard /></RotaProtegida>} />
                     <Route path="/projetos" element={<RotaProtegida><Projetos /></RotaProtegida>} />
                     <Route path="/memorial" element={<RotaProtegida><Memorial /></RotaProtegida>} />
                     <Route path="/orcamentos" element={<RotaProtegida><Orcamentos /></RotaProtegida>} />
+
+                    {/* Páginas ainda em construção */}
+                    <Route path="/meus-briefings" element={<RotaProtegida><EmConstrucao /></RotaProtegida>} />
+                    <Route path="/producao" element={<RotaProtegida><EmConstrucao /></RotaProtegida>} />
+                    <Route path="/clientes" element={<RotaProtegida><EmConstrucao /></RotaProtegida>} />
+                    <Route path="/relatorios" element={<RotaProtegida><EmConstrucao /></RotaProtegida>} />
+
                     <Route path="/acesso-negado" element={<AcessoNegado />} />
                     <Route path="*" element={<Navigate to="/login" />} />
                 </Routes>
