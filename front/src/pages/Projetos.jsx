@@ -3,17 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Search, Trash2, ChevronDown } from 'lucide-react'
 import * as api from '@/services/api'
 import Sidebar from '@/components/Sidebar'
+import { temPermissao } from '@/lib/permissoes'
 
 // ─── Configuração dos status ───────────────────────────────────────────────
 const STATUS_LISTA = ['Recebido', 'Em criação', 'Memorial', 'Precificação', 'Enviado', 'Aprovado']
 
 const STATUS_CORES = {
-    'Recebido':     { bg: 'bg-blue-500',   light: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200' },
-    'Em criação':   { bg: 'bg-purple-500', light: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-    'Memorial':     { bg: 'bg-red-500',    light: 'bg-red-50',    text: 'text-red-700',    border: 'border-red-200' },
+    'Recebido': { bg: 'bg-blue-500', light: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+    'Em criação': { bg: 'bg-purple-500', light: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+    'Memorial': { bg: 'bg-red-500', light: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
     'Precificação': { bg: 'bg-yellow-500', light: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' },
-    'Enviado':      { bg: 'bg-cyan-500',   light: 'bg-cyan-50',   text: 'text-cyan-700',   border: 'border-cyan-200' },
-    'Aprovado':     { bg: 'bg-green-500',  light: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200' },
+    'Enviado': { bg: 'bg-cyan-500', light: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' },
+    'Aprovado': { bg: 'bg-green-500', light: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
 }
 
 // ─── Estado inicial do formulário ──────────────────────────────────────────
@@ -29,15 +30,19 @@ function iniciais(nome) {
 }
 
 export default function Projetos() {
-    const [usuario,      setUsuario]      = useState(null)
-    const [projetos,     setProjetos]     = useState([])
-    const [modalAberto,  setModalAberto]  = useState(false)
-    const [form,         setForm]         = useState(FORM_INICIAL)
-    const [arquivos,     setArquivos]     = useState({ manual: null, mapa: null, logos: null, briefing: null })
+    const [usuario, setUsuario] = useState(null)
+    const [projetos, setProjetos] = useState([])
+    const [modalAberto, setModalAberto] = useState(false)
+    const [form, setForm] = useState(FORM_INICIAL)
+    const [arquivos, setArquivos] = useState({ manual: null, mapa: null, logos: null, briefing: null })
     const [filtroStatus, setFiltroStatus] = useState('')
-    const [filtroBusca,  setFiltroBusca]  = useState('')
-    const [loading,      setLoading]      = useState(false)
-    const [erro,         setErro]         = useState('')
+    const [filtroBusca, setFiltroBusca] = useState('')
+    const [modalProjetista, setModalProjetista] = useState(false)
+    const [projetoSelecionado, setProjetoSelecionado] = useState(null)
+    const [projetistas, setProjetistas] = useState([])
+    const [projetistaSelecionado, setProjetistaSelecionado] = useState('')
+    const [loading, setLoading] = useState(false)
+    const [erro, setErro] = useState('')
     const navigate = useNavigate()
 
     // ─── Carrega dados iniciais ────────────────────────────────────────
@@ -54,6 +59,26 @@ export default function Projetos() {
     async function carregarProjetos() {
         const data = await api.getProjetos()
         if (Array.isArray(data)) setProjetos(data)
+    }
+
+    async function abrirModalProjetista(projeto) {
+        const lista = await api.getProjetistas()
+
+        setProjetistas(lista)
+        setProjetoSelecionado(projeto.id)
+        setProjetistaSelecionado(projeto.projetistaId || '')
+        setModalProjetista(true)
+    }
+
+    async function confirmarProjetista() {
+        if (!projetistaSelecionado) return
+
+        await api.alocarProjetista(projetoSelecionado, projetistaSelecionado)
+
+        setModalProjetista(false)
+        setProjetoSelecionado(null)
+        setProjetistaSelecionado('')
+        await carregarProjetos()
     }
 
     // ─── Handlers do formulário ────────────────────────────────────────
@@ -80,9 +105,9 @@ export default function Projetos() {
             if (res.id) {
                 // Faz upload dos arquivos
                 const formData = new FormData()
-                if (arquivos.manual)   formData.append('manual',   arquivos.manual)
-                if (arquivos.mapa)     formData.append('mapa',     arquivos.mapa)
-                if (arquivos.logos)    formData.append('logos',    arquivos.logos)
+                if (arquivos.manual) formData.append('manual', arquivos.manual)
+                if (arquivos.mapa) formData.append('mapa', arquivos.mapa)
+                if (arquivos.logos) formData.append('logos', arquivos.logos)
                 if (arquivos.briefing) formData.append('briefing', arquivos.briefing)
                 await api.uploadArquivos(res.id, formData)
 
@@ -119,7 +144,7 @@ export default function Projetos() {
     // ─── Filtragem dos projetos ────────────────────────────────────────
     const projetosFiltrados = projetos.filter(p => {
         const passaStatus = !filtroStatus || p.status === filtroStatus
-        const passaBusca  = !filtroBusca  ||
+        const passaBusca = !filtroBusca ||
             p.nome?.toLowerCase().includes(filtroBusca.toLowerCase()) ||
             p.cliente?.toLowerCase().includes(filtroBusca.toLowerCase()) ||
             p.feira?.toLowerCase().includes(filtroBusca.toLowerCase())
@@ -160,9 +185,9 @@ export default function Projetos() {
                     {/* Cards de status */}
                     <div className="grid grid-cols-6 gap-3">
                         {STATUS_LISTA.map(status => {
-                            const cores  = STATUS_CORES[status]
-                            const qtd    = contagemStatus[status] || 0
-                            const ativo  = filtroStatus === status
+                            const cores = STATUS_CORES[status]
+                            const qtd = contagemStatus[status] || 0
+                            const ativo = filtroStatus === status
                             return (
                                 <button
                                     key={status}
@@ -255,6 +280,15 @@ export default function Projetos() {
                                                 <p className="text-xs text-gray-400 shrink-0 hidden lg:block">
                                                     {p.responsavel.name}
                                                 </p>
+                                            )}
+
+                                            {/* Alocar Projetista */}
+                                            {temPermissao(usuario?.cargo, 'alocarProjetista') && (
+                                                <button onClick={() => abrirModalProjetista(p)}>
+                                                    {p.projetista
+                                                        ? `Projetista: ${p.projetista.name}`
+                                                        : 'Alocar projetista'}
+                                                </button>
                                             )}
 
                                             {/* Select de status */}
@@ -476,6 +510,47 @@ export default function Projetos() {
                                 {loading ? 'Salvando...' : 'Enviar para análise'}
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+            {/* ── Modal Alocar Projetista ─────────────────────────────── */}
+            {modalProjetista && (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl p-6 w-full max-w-sm">
+
+                        <h3 className="text-lg font-semibold mb-4">
+                            Alocar projetista
+                        </h3>
+
+                        <select
+                            value={projetistaSelecionado}
+                            onChange={(e) => setProjetistaSelecionado(e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 mb-4"
+                        >
+                            <option value="">Selecione um projetista</option>
+                            {projetistas.map(p => (
+                                <option key={p.id} value={p.id}>
+                                    {p.name}
+                                </option>
+                            ))}
+                        </select>
+
+                        <div className="flex justify-end gap-2">
+                            <button
+                                onClick={() => setModalProjetista(false)}
+                                className="px-4 py-2 text-sm text-gray-500"
+                            >
+                                Cancelar
+                            </button>
+
+                            <button
+                                onClick={confirmarProjetista}
+                                className="px-4 py-2 bg-[#2D3AC2] text-white rounded-lg"
+                            >
+                                Confirmar
+                            </button>
+                        </div>
+
                     </div>
                 </div>
             )}

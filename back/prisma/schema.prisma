@@ -13,7 +13,8 @@ model User {
   name     String?
   cargo    String?
   password String
-  projetos Projeto[] @relation("Responsavel")
+  projetosResponsavel Projeto[] @relation("Responsavel")
+  projetosProjetista  Projeto[] @relation("Projetista")
 }
 
 model Projeto {
@@ -31,6 +32,8 @@ model Projeto {
   tipo          String?
   responsavelId String?  @db.ObjectId
   responsavel   User?    @relation("Responsavel", fields: [responsavelId], references: [id])
+  projetistaId  String?  @db.ObjectId
+  projetista    User?    @relation("Projetista", fields: [projetistaId], references: [id])
   criadoEm      DateTime @default(now())
   atualizadoEm  DateTime @updatedAt
 }

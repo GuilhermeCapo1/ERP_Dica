@@ -32,14 +32,14 @@ const storage = multer.diskStorage({
 })
 
 const upload = multer({
-  storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
-  fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|pdf/
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase())
-    if (ext) return cb(null, true)
-    cb(new Error('Apenas imagens e PDFs são permitidos'))
-  }
+    storage,
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+    fileFilter: (req, file, cb) => {
+        const allowed = /jpeg|jpg|png|pdf/
+        const ext = allowed.test(path.extname(file.originalname).toLowerCase())
+        if (ext) return cb(null, true)
+        cb(new Error('Apenas imagens e PDFs são permitidos'))
+    }
 })
 /**
  * POST /cadastro
@@ -47,6 +47,7 @@ const upload = multer({
  * Valida os campos obrigatórios e armazena a senha com hash bcrypt.
  */
 app.post('/cadastro', async (req, res) => {
+     console.log(req.body) // 👈 adiciona isso
     const { email, name, cargo, password } = req.body;
 
     // Validação dos campos obrigatórios
@@ -57,7 +58,7 @@ app.post('/cadastro', async (req, res) => {
     try {
         const hashedPassword = await bcrypt.hash(password, 10); // 10 = custo do hash
         const user = await prisma.user.create({
-            data: { email, name, cargo, password: hashedPassword }
+            data: { email, name, cargo: cargo?.toLowerCase(), password: hashedPassword }
         });
         res.status(201).json({ message: 'Cadastro recebido', user });
     } catch (error) {
@@ -226,6 +227,22 @@ app.delete('/usuarios/:id', authMiddleware, async (req, res) => {
 });
 
 // PROJETOS
+
+app.get('/projetistas', authMiddleware, async (req, res) => {
+    const projetistas = await prisma.user.findMany({
+        where: {
+            cargo: {
+                contains: 'projet',
+                mode: 'insensitive'
+            }
+        },
+        select: { id: true, name: true }
+    })
+
+    console.log(projetistas) // 👈 debug
+    res.json(projetistas)
+})
+
 app.get('/projetos', authMiddleware, async (req, res) => {
     const { status, responsavelId, cliente } = req.query
     const where = {}
@@ -235,7 +252,10 @@ app.get('/projetos', authMiddleware, async (req, res) => {
 
     const projetos = await prisma.projeto.findMany({
         where,
-        include: { responsavel: { select: { id: true, name: true, cargo: true } } },
+        include: {
+            responsavel: {select: { id: true, name: true, cargo: true }},
+            projetista: {select: { id: true, name: true }}
+        },
         orderBy: { criadoEm: 'desc' }
     })
     res.json(projetos)
@@ -327,6 +347,27 @@ app.post('/projetos/:id/arquivos', authMiddleware, upload.fields([
     } catch (error) {
         console.error(error)
         res.status(500).json({ message: 'Erro ao salvar arquivos' })
+    }
+})
+
+app.get('/projetistas', authMiddleware, async (req, res) => {
+    const projetistas = await prisma.user.findMany({
+        where: { cargo: 'Projetista' },
+        select: { id: true, name: true }
+    })
+    res.json(projetistas)
+})
+
+app.patch('/projetos/:id/projetista', authMiddleware, async (req, res) => {
+    const { projetistaId } = req.body
+    try {
+        const projeto = await prisma.projeto.update({
+            where: { id: req.params.id },
+            data: { projetistaId }
+        })
+        res.json(projeto)
+    } catch (error) {
+        res.status(500).json({ message: 'Erro ao alocar projetista' })
     }
 })
 

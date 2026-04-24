@@ -1,41 +1,17 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import {
-    LayoutDashboard,
-    FolderKanban,
-    Hammer,
-    FileText,
-    DollarSign,
-    Users,
-    BarChart3,
-    LogOut,
-} from 'lucide-react'
+import { LogOut, Lock } from 'lucide-react'
 import * as api from '@/services/api'
-
-// ─── Itens do menu ────────────────────────────────────────────────────────────
-const MENU_ITENS = [
-    { label: 'Dashboard',  icone: LayoutDashboard, rota: '/dashboard' },
-    { label: 'Projetos',   icone: FolderKanban,    rota: '/projetos'  },
-    { label: 'Produção',   icone: Hammer,          rota: '/producao'  },
-    { label: 'Memorial',   icone: FileText,        rota: '/memorial'  },
-    { label: 'Orçamentos', icone: DollarSign,      rota: '/orcamentos'},
-    { label: 'Clientes',   icone: Users,           rota: '/clientes'  },
-    { label: 'Relatórios', icone: BarChart3,       rota: '/relatorios'},
-]
-
-// ─── Helper: pega as iniciais do nome ────────────────────────────────────────
-function iniciais(nome) {
-    if (!nome) return '?'
-    return nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
-}
+import { temAcesso, ROTAS, LABEL_CARGO } from '@/config/routes'
+import { iniciais } from '@/utils/format'
 
 /**
  * Sidebar reutilizável
  * Props:
- *   usuario  → objeto { name, cargo } do usuário logado
+ *   usuario → objeto { name, cargo } do usuário logado
  */
 export default function Sidebar({ usuario }) {
     const localizacao = useLocation()
-    const navigate    = useNavigate()
+    const navigate = useNavigate()
 
     async function handleLogout() {
         await api.logout()
@@ -53,12 +29,30 @@ export default function Sidebar({ usuario }) {
 
             {/* Navegação */}
             <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5">
-                {MENU_ITENS.map(({ label, icone: Icone, rota }) => {
-                    const ativo = localizacao.pathname === rota
+                {ROTAS.map(({ path, label, icone: Icone }) => {
+                    const ativo = localizacao.pathname === path
+                    const liberado = temAcesso(usuario?.cargo, path)
+
+                    // ── Item BLOQUEADO ────────────────────────────────────
+                    if (!liberado) {
+                        return (
+                            <div
+                                key={path}
+                                title="Você não tem acesso a esta área"
+                                className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-not-allowed select-none"
+                            >
+                                <Icone size={17} className="text-gray-300" />
+                                <span className="flex-1 text-sm font-medium text-gray-300">{label}</span>
+                                <Lock size={12} className="text-gray-300 shrink-0" />
+                            </div>
+                        )
+                    }
+
+                    // ── Item LIBERADO ─────────────────────────────────────
                     return (
                         <Link
-                            key={rota}
-                            to={rota}
+                            key={path}
+                            to={path}
                             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                                 ${ativo
                                     ? 'bg-[#2D3AC2] text-white'
@@ -66,7 +60,7 @@ export default function Sidebar({ usuario }) {
                                 }`}
                         >
                             <Icone size={17} />
-                            {label}
+                            <span className="flex-1">{label}</span>
                         </Link>
                     )
                 })}
@@ -80,7 +74,9 @@ export default function Sidebar({ usuario }) {
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{usuario?.name}</p>
-                        <p className="text-xs text-gray-400 truncate capitalize">{usuario?.cargo || 'Usuário'}</p>
+                        <p className="text-xs text-gray-400 truncate">
+                            {LABEL_CARGO[usuario?.cargo] || 'Usuário'}
+                        </p>
                     </div>
                     <button
                         onClick={handleLogout}

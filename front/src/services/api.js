@@ -1,80 +1,101 @@
-const API_URL = 'http://localhost:3001'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+
+/**
+ * Faz uma requisição HTTP com tratamento de erro padrão
+ * @param {string} url - URL da requisição
+ * @param {RequestInit} options - Opções do fetch
+ * @returns {Promise<any>} Resposta JSON
+ */
+async function request(url, options = {}) {
+    const res = await fetch(url, {
+        ...options,
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json',
+            ...options.headers,
+        },
+    })
+
+    if (!res.ok) {
+        const error = await res.json().catch(() => ({ message: `HTTP ${res.status}` }))
+        throw new Error(error.message || `HTTP ${res.status}`)
+    }
+
+    // 204 No Content não retorna JSON
+    if (res.status === 204) return null
+
+    return res.json()
+}
 
 export async function login(email, password) {
-  const res = await fetch(`${API_URL}/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ email, password })
-  })
-  return res.json()
+    return request(`${API_URL}/login`, {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+    })
 }
 
 export async function cadastro(name, email, password, cargo) {
-  const res = await fetch(`${API_URL}/cadastro`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, password, cargo })
-  })
-  return res.json()
+    return request(`${API_URL}/cadastro`, {
+        method: 'POST',
+        body: JSON.stringify({ name, email, password, cargo }),
+    })
 }
 
 export async function logout() {
-  const res = await fetch(`${API_URL}/logout`, {
-    method: 'POST',
-    credentials: 'include'
-  })
-  return res.json()
+    return request(`${API_URL}/logout`, { method: 'POST' })
 }
 
 export async function getMe() {
-  const res = await fetch(`${API_URL}/me`, {
-    credentials: 'include'
-  })
-  return res.json()
+    return request(`${API_URL}/me`)
 }
 
 export async function getProjetos(filtros = {}) {
-  const params = new URLSearchParams(filtros).toString()
-  const res = await fetch(`${API_URL}/projetos?${params}`, {
-    credentials: 'include'
-  })
-  return res.json()
+    const params = new URLSearchParams(filtros).toString()
+    return request(`${API_URL}/projetos?${params}`)
+}
+
+export async function getProjetistas() {
+    return request(`${API_URL}/projetistas`)
 }
 
 export async function criarProjeto(data) {
-  const res = await fetch(`${API_URL}/projetos`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(data)
-  })
-  return res.json()
+    return request(`${API_URL}/projetos`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    })
 }
 
 export async function atualizarStatus(id, status) {
-  const res = await fetch(`${API_URL}/projetos/${id}/status`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ status })
-  })
-  return res.json()
+    return request(`${API_URL}/projetos/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+    })
+}
+
+export async function alocarProjetista(projetoId, projetistaId) {
+    return request(`${API_URL}/projetos/${projetoId}/projetista`, {
+        method: 'PATCH',
+        body: JSON.stringify({ projetistaId }),
+    })
 }
 
 export async function deletarProjeto(id) {
-  const res = await fetch(`${API_URL}/projetos/${id}`, {
-    method: 'DELETE',
-    credentials: 'include'
-  })
-  return res.json()
+    return request(`${API_URL}/projetos/${id}`, {
+        method: 'DELETE',
+    })
 }
 
 export async function uploadArquivos(id, formData) {
-  const res = await fetch(`${API_URL}/projetos/${id}/arquivos`, {
-    method: 'POST',
-    credentials: 'include',
-    body: formData
-  })
-  return res.json()
+    const res = await fetch(`${API_URL}/projetos/${id}/arquivos`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+    })
+
+    if (!res.ok) {
+        const error = await res.json().catch(() => ({ message: `HTTP ${res.status}` }))
+        throw new Error(error.message || `HTTP ${res.status}`)
+    }
+
+    return res.json()
 }
