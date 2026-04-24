@@ -47,7 +47,6 @@ const upload = multer({
  * Valida os campos obrigatórios e armazena a senha com hash bcrypt.
  */
 app.post('/cadastro', async (req, res) => {
-     console.log(req.body) // 👈 adiciona isso
     const { email, name, cargo, password } = req.body;
 
     // Validação dos campos obrigatórios
