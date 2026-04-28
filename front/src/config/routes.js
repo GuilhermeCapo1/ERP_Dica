@@ -67,8 +67,6 @@ export const ROTAS = [
 
 /**
  * Retorna as rotas que um cargo pode acessar.
- * @param {string} cargo - Cargo do usuário
- * @returns {string[]} Array de paths de rotas permitidas
  */
 export function getRotasPorCargo(cargo) {
     if (!cargo) return []
@@ -80,20 +78,14 @@ export function getRotasPorCargo(cargo) {
 
 /**
  * Verifica se um cargo tem acesso a uma rota.
- * @param {string} cargo - Cargo do usuário
- * @param {string} rota - Rota que está tentando acessar
- * @returns {boolean}
  */
 export function temAcesso(cargo, rota) {
     if (!cargo || !rota) return false
-    const rotasPermitidas = getRotasPorCargo(cargo)
-    return rotasPermitidas.includes(rota.toLowerCase())
+    return getRotasPorCargo(cargo).includes(rota.toLowerCase())
 }
 
 /**
  * Retorna os cargos que podem acessar uma rota.
- * @param {string} path - Path da rota
- * @returns {string[]} Array de cargos permitidos
  */
 export function getCargosPorRota(path) {
     const rota = ROTAS.find(r => r.path === path)
@@ -101,30 +93,46 @@ export function getCargosPorRota(path) {
 }
 
 /**
- * Funcionalidades específicas por cargo (usadas nos componentes para mostrar/esconder botões)
+ * Funcionalidades específicas por cargo.
+ * Usadas nos componentes para mostrar/esconder botões e ações.
  */
 export const FUNCIONALIDADES = {
-    // Pode alocar ou trocar o projetista de um projeto
+    // Alocar ou trocar projetista de um projeto
     alocarProjetista: ['gerente', 'diretor'],
 
-    // Pode criar novos projetos
+    // Criar novos projetos
     criarProjeto: ['vendedor', 'gerente', 'diretor'],
 
-    // Pode deletar projetos
+    // Deletar projetos
     deletarProjeto: ['gerente', 'diretor'],
 
-    // Pode alterar o status de um projeto
-    alterarStatus: ['gerente', 'diretor', 'projetista'],
+    // Alterar status manualmente (select de status)
+    // Vendedor NÃO pode alterar status — o fluxo é automático
+    alterarStatus: ['gerente', 'diretor'],
 
-    // Pode ver os briefings alocados para si (tela Meus Briefings)
+    // Voltar status para etapa anterior (com justificativa)
+    voltarStatus: ['gerente', 'diretor'],
+
+    // Registrar resultado do projeto (aprovado/reprovado)
+    // Apenas o vendedor responsável pelo projeto pode fazer isso
+    // (validação adicional feita no componente: p.responsavelId === usuario.id)
+    registrarResultado: ['vendedor'],
+
+    // Ver briefings alocados (tela Meus Briefings)
     verBriefingAlocado: ['projetista', 'gerente', 'diretor'],
+
+    // Criar e editar memorial
+    gerenciarMemorial: ['gerente', 'diretor'],
+
+    // Criar e editar orçamento
+    gerenciarOrcamento: ['gerente', 'diretor'],
+
+    // Ver todos os clientes (vendedor só vê os seus)
+    verTodosClientes: ['gerente', 'diretor'],
 }
 
 /**
  * Verifica se um cargo pode usar uma funcionalidade específica.
- * @param {string} cargo - cargo do usuário
- * @param {string} funcionalidade - chave de FUNCIONALIDADES (ex: 'alocarProjetista')
- * @returns {boolean}
  */
 export function temPermissao(cargo, funcionalidade) {
     if (!cargo || !funcionalidade) return false
@@ -135,7 +143,6 @@ export function temPermissao(cargo, funcionalidade) {
 
 /**
  * Lista de todos os cargos válidos no sistema.
- * Útil para validações e selects no frontend.
  */
 export const CARGOS_VALIDOS = ['vendedor', 'gerente', 'projetista', 'diretor']
 

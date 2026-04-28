@@ -7,76 +7,121 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User { 
-  id       String    @id @default(auto()) @map("_id") @db.ObjectId
-  email    String    @unique
-  name     String?
-  cargo    String?
-  password String
-  projetosResponsavel Projeto[]      @relation("Responsavel")
-  projetosProjetista  Projeto[]      @relation("Projetista")
+model User {
+  id                  String      @id @default(auto()) @map("_id") @db.ObjectId
+  email               String      @unique
+  name                String?
+  cargo               String?
+  password            String
+  projetosResponsavel Projeto[]   @relation("Responsavel")
+  projetosProjetista  Projeto[]   @relation("Projetista")
   memoriais           Memorial[]
+  orcamentos          Orcamento[]
 }
 
 model Projeto {
-  id            String          @id @default(auto()) @map("_id") @db.ObjectId
-  nome          String
-  cliente       String
-  feira         String?
-  metragem      Float?
-  datas         String?
-  local         String?
-  briefing      String?
-  dataLimite    DateTime?
-  arquivos      String?
-  status        String          @default("Recebido")
-  tipo          String?
-  responsavelId String?         @db.ObjectId
-  responsavel   User?           @relation("Responsavel", fields: [responsavelId], references: [id])
-  projetistaId  String?         @db.ObjectId
-  projetista    User?           @relation("Projetista", fields: [projetistaId], references: [id])
-  criadoEm      DateTime        @default(now())
-  atualizadoEm  DateTime        @updatedAt
+  id             String          @id @default(auto()) @map("_id") @db.ObjectId
+  nome           String
+  cliente        String
+  feira          String?
+  metragem       Float?
+  datas          String?
+  local          String?
+  briefing       String?
+  dataLimite     DateTime?
+  arquivos       String?
+  status         String          @default("Recebido")
+  tipo           String?
+  responsavelId  String?         @db.ObjectId
+  responsavel    User?           @relation("Responsavel", fields: [responsavelId], references: [id])
+  projetistaId   String?         @db.ObjectId
+  projetista     User?           @relation("Projetista", fields: [projetistaId], references: [id])
+  criadoEm       DateTime        @default(now())
+  atualizadoEm   DateTime        @updatedAt
   imagensProjeto ImagemProjeto[]
   memoriais      Memorial[]
+  orcamentos     Orcamento[]
+
+  // Resultado final — preenchido pelo vendedor ao marcar aprovado/reprovado
+  resultadoFinal       String?  // 'aprovado' | 'reprovado'
+  clienteId            String?  @db.ObjectId
+  clienteRef           Cliente? @relation(fields: [clienteId], references: [id])
+  formaPagamento       String?  // 'boleto' | 'pix'
+  tipoDocumento        String?  // 'nota_fiscal' | 'recibo_locacao'
+  condicoesPagamento   String?
+  observacoesAprovacao String?
 }
 
-// Imagens enviadas pelo projetista após concluir o projeto
-// (renders, plantas, elevações — aparecem no memorial)
 model ImagemProjeto {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  projetoId  String   @db.ObjectId
-  projeto    Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  filename   String
-  url        String
-  ordem      Int      @default(0)
-  criadoEm  DateTime @default(now())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  projetoId String   @db.ObjectId
+  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  filename  String
+  url       String
+  ordem     Int      @default(0)
+  criadoEm DateTime @default(now())
 }
 
-// Memorial descritivo — pode ter múltiplas versões por projeto
 model Memorial {
-  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
-  projetoId           String   @db.ObjectId
-  projeto             Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  versao              Int      @default(1)
+  id                String     @id @default(auto()) @map("_id") @db.ObjectId
+  projetoId         String     @db.ObjectId
+  projeto           Projeto    @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  versao            Int        @default(1)
+  piso              String?
+  estrutura         String?
+  areaAtendimento   String?
+  audioVisual       String?
+  comunicacaoVisual String?
+  eletrica          String?
+  camposAtivos      String     @default("[\"piso\",\"estrutura\",\"areaAtendimento\",\"audioVisual\",\"comunicacaoVisual\",\"eletrica\"]")
+  ordemImagens      String     @default("[]")
+  criadoEm         DateTime   @default(now())
+  atualizadoEm     DateTime   @updatedAt
+  criadoPorId      String?    @db.ObjectId
+  criadoPor        User?      @relation(fields: [criadoPorId], references: [id])
+  orcamento        Orcamento?
+}
 
-  // Os 6 campos de conteúdo (texto livre)
-  piso                String?
-  estrutura           String?
-  areaAtendimento     String?
-  audioVisual         String?
-  comunicacaoVisual   String?
-  eletrica            String?
+model Orcamento {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  projetoId      String    @db.ObjectId
+  projeto        Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  memorialId     String    @unique @db.ObjectId
+  memorial       Memorial  @relation(fields: [memorialId], references: [id], onDelete: Cascade)
+  versao         Int       @default(1)
 
-  // Quais seções aparecem no PDF (JSON: array de strings com os campos ativos)
-  // Ex: ["piso","estrutura","eletrica"]
-  camposAtivos        String   @default("[\"piso\",\"estrutura\",\"areaAtendimento\",\"audioVisual\",\"comunicacaoVisual\",\"eletrica\"]")
+  // JSON: [{ descricao: string, quantidade: number, valorUnitario: number }]
+  // O primeiro item (montagem/ART) é sempre fixo com qtd = metragem do projeto
+  itens          String    @default("[]")
 
-  // Ordem das imagens no PDF (JSON: array de IDs de ImagemProjeto em ordem)
-  ordemImagens        String   @default("[]")
+  formaPagamento String?
+  vencimentos    String?
+  cidade         String?   @default("São Paulo")
+  dataOrcamento  DateTime  @default(now())
 
-  criadoEm           DateTime @default(now())
-  atualizadoEm       DateTime @updatedAt
-  criadoPorId        String?  @db.ObjectId
-  criadoPor          User?    @relation(fields: [criadoPorId], references: [id])
+  enviado        Boolean   @default(false)
+  enviadoEm      DateTime?
+
+  criadoEm      DateTime  @default(now())
+  atualizadoEm  DateTime  @updatedAt
+  criadoPorId   String?   @db.ObjectId
+  criadoPor     User?     @relation(fields: [criadoPorId], references: [id])
+}
+
+model Cliente {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  nomeEmpresa  String
+  nomeFantasia String?
+  cnpj         String?
+  cpf          String?
+  email        String?
+  telefone     String?
+  endereco     String?
+  cidade       String?
+  estado       String?
+  cep          String?
+  responsavel  String?
+  criadoEm    DateTime  @default(now())
+  atualizadoEm DateTime @updatedAt
+  projetos     Projeto[]
 }
