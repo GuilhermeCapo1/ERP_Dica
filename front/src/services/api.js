@@ -69,10 +69,10 @@ export async function criarProjeto(data) {
     })
 }
 
-export async function atualizarStatus(id, status) {
+export async function atualizarStatus(id, status, justificativa) {
     return request(`${API_URL}/projetos/${id}/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, justificativa }),
     })
 }
 
@@ -158,4 +158,50 @@ export async function atualizarMemorial(memorialId, dados) {
 
 export async function deletarMemorial(memorialId) {
     return request(`${API_URL}/memoriais/${memorialId}`, { method: 'DELETE' })
+}
+
+// ── Orçamentos ────────────────────────────────────────────────────────────
+
+// Lista orçamentos de um projeto
+export async function getOrcamentos(projetoId) {
+    return request(`${API_URL}/projetos/${projetoId}/orcamentos`)
+}
+
+// Cria novo orçamento
+export async function criarOrcamento(projetoId, dados) {
+    return request(`${API_URL}/projetos/${projetoId}/orcamentos`, {
+        method: 'POST',
+        body: JSON.stringify(dados),
+    })
+}
+
+// Atualiza orçamento existente
+export async function atualizarOrcamento(orcamentoId, dados) {
+    return request(`${API_URL}/orcamentos/${orcamentoId}`, {
+        method: 'PUT',
+        body: JSON.stringify(dados),
+    })
+}
+
+// Marca como enviado
+export async function enviarOrcamento(orcamentoId) {
+    return request(`${API_URL}/orcamentos/${orcamentoId}/enviar`, {
+        method: 'PATCH',
+    })
+}
+
+// Deleta orçamento
+export async function deletarOrcamento(orcamentoId) {
+    return request(`${API_URL}/orcamentos/${orcamentoId}`, {
+        method: 'DELETE',
+    })
+}
+
+// ── Aprovação ────────────────────────────────────────────────────────────
+
+export async function registrarResultado(projetoId, dados) {
+    return request(`${API_URL}/projetos/${projetoId}/resultado`, {
+        method: 'POST',
+        body: JSON.stringify(dados),
+    })
 }
