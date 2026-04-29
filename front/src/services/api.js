@@ -201,7 +201,7 @@ export async function deletarOrcamento(orcamentoId) {
 
 export async function registrarResultado(projetoId, dados) {
     return request(`${API_URL}/projetos/${projetoId}/resultado`, {
-        method: 'POST',
+        method: 'PATCH',
         body: JSON.stringify(dados),
     })
 }
