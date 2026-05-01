@@ -197,11 +197,33 @@ export async function deletarOrcamento(orcamentoId) {
     })
 }
 
+// Detalhes de um orçamento específico
+export async function getOrcamento(orcamentoId) {
+    return request(`${API_URL}/orcamentos/${orcamentoId}`)
+}
+
 // ── Aprovação ────────────────────────────────────────────────────────────
 
 export async function registrarResultado(projetoId, dados) {
     return request(`${API_URL}/projetos/${projetoId}/resultado`, {
         method: 'PATCH',
+        body: JSON.stringify(dados),
+    })
+}
+
+// ── Clientes ────────────────────────────────────────────────────────────────
+
+export async function getClientes() {
+    return request(`${API_URL}/clientes`)
+}
+
+export async function getCliente(clienteId) {
+    return request(`${API_URL}/clientes/${clienteId}`)
+}
+
+export async function atualizarCliente(clienteId, dados) {
+    return request(`${API_URL}/clientes/${clienteId}`, {
+        method: 'PUT',
         body: JSON.stringify(dados),
     })
 }

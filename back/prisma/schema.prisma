@@ -29,7 +29,11 @@ model Projeto {
   local          String?
   briefing       String?
   dataLimite     DateTime?
-  arquivos       String?
+
+  // Arquivos de briefing salvos como JSON nativo no MongoDB
+  // Estrutura: { manual?: {url, nome}, mapa?: {url, nome}, briefing?: {url, nome}, logos?: [{url, nome}] }
+  arquivos       Json?
+
   status         String          @default("Recebido")
   tipo           String?
   responsavelId  String?         @db.ObjectId
@@ -42,12 +46,11 @@ model Projeto {
   memoriais      Memorial[]
   orcamentos     Orcamento[]
 
-  // Resultado final — preenchido pelo vendedor ao marcar aprovado/reprovado
-  resultadoFinal       String?  // 'aprovado' | 'reprovado'
+  resultadoFinal       String?
   clienteId            String?  @db.ObjectId
   clienteRef           Cliente? @relation(fields: [clienteId], references: [id])
-  formaPagamento       String?  // 'boleto' | 'pix'
-  tipoDocumento        String?  // 'nota_fiscal' | 'recibo_locacao'
+  formaPagamento       String?
+  tipoDocumento        String?
   condicoesPagamento   String?
   observacoesAprovacao String?
 }
@@ -89,19 +92,13 @@ model Orcamento {
   memorialId     String    @unique @db.ObjectId
   memorial       Memorial  @relation(fields: [memorialId], references: [id], onDelete: Cascade)
   versao         Int       @default(1)
-
-  // JSON: [{ descricao: string, quantidade: number, valorUnitario: number }]
-  // O primeiro item (montagem/ART) é sempre fixo com qtd = metragem do projeto
   itens          String    @default("[]")
-
   formaPagamento String?
   vencimentos    String?
   cidade         String?   @default("São Paulo")
   dataOrcamento  DateTime  @default(now())
-
   enviado        Boolean   @default(false)
   enviadoEm      DateTime?
-
   criadoEm      DateTime  @default(now())
   atualizadoEm  DateTime  @updatedAt
   criadoPorId   String?   @db.ObjectId

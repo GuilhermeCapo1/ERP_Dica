@@ -14,6 +14,9 @@ const Orcamentos = lazy(() => import('./pages/Orcamentos'))
 // Página do projetista
 const MeusBriefings = lazy(() => import('./pages/MeusBriefings'))
 
+// Página de clientes
+const Clientes = lazy(() => import('./pages/Clientes'))
+
 // Páginas ainda não implementadas — usam o placeholder EmConstrucao
 const EmConstrucao = lazy(() => import('./pages/EmConstrucao'))
 
@@ -46,7 +49,7 @@ function App() {
                     {/* Meus Briefings — projetista */}
                     <Route path="/meus-briefings" element={<RotaProtegida><MeusBriefings /></RotaProtegida>} />
                     <Route path="/producao" element={<RotaProtegida><EmConstrucao /></RotaProtegida>} />
-                    <Route path="/clientes" element={<RotaProtegida><EmConstrucao /></RotaProtegida>} />
+                    <Route path="/clientes" element={<RotaProtegida><Clientes /></RotaProtegida>} />
                     <Route path="/relatorios" element={<RotaProtegida><EmConstrucao /></RotaProtegida>} />
 
                     <Route path="/acesso-negado" element={<AcessoNegado />} />

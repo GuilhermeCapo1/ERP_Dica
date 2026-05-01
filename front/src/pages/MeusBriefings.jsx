@@ -1,6 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Upload, Trash2, ImageIcon, ChevronDown, X, CheckCircle2 } from 'lucide-react'
+import {
+    Upload, ImageIcon, ChevronDown, X,
+    CheckCircle2, FileText, Map, Image, Download
+} from 'lucide-react'
 import * as api from '@/services/api'
 import Sidebar from '@/components/Sidebar'
 
@@ -15,16 +18,45 @@ const STATUS_CORES = {
     'Aprovado':     { light: 'bg-green-50',  text: 'text-green-700' },
 }
 
+// ─── Faz parse seguro do campo arquivos ────────────────────────────────────
+// O campo pode vir como objeto (Json nativo) ou string (legado)
+function parsearArquivos(raw) {
+    if (!raw) return {}
+    if (typeof raw === 'object') return raw
+    try { return JSON.parse(raw) } catch { return {} }
+}
+
+// ─── Componente de link de arquivo para download ───────────────────────────
+function LinkArquivo({ label, icone: Icone, arquivo }) {
+    if (!arquivo) return null
+    const url = arquivo.url || arquivo  // suporta formato legado (só string)
+    const nome = arquivo.nome || url.split('/').pop()
+    const isPDF = nome.toLowerCase().endsWith('.pdf')
+
+    return (
+        <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            download={nome}
+            className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-200 transition-colors group"
+        >
+            <Icone size={14} className="text-gray-400 group-hover:text-blue-500 shrink-0" />
+            <span className="text-xs text-gray-600 group-hover:text-blue-700 truncate flex-1">{label}</span>
+            <Download size={12} className="text-gray-300 group-hover:text-blue-500 shrink-0" />
+        </a>
+    )
+}
+
 export default function MeusBriefings() {
-    const [usuario, setUsuario] = useState(null)
-    const [projetos, setProjetos] = useState([])
+    const [usuario, setUsuario]       = useState(null)
+    const [projetos, setProjetos]     = useState([])
     const [projetoAberto, setProjetoAberto] = useState(null)
     const [imagensPorProjeto, setImagensPorProjeto] = useState({})
     const [carregando, setCarregando] = useState(true)
-    const [enviando, setEnviando] = useState(false)
-    const [sucesso, setSucesso] = useState('')
-    const [erro, setErro] = useState('')
-    const inputRef = useRef(null)
+    const [enviando, setEnviando]     = useState(false)
+    const [sucesso, setSucesso]       = useState('')
+    const [erro, setErro]             = useState('')
     const navigate = useNavigate()
 
     // ─── Carrega dados iniciais ──────────────────────────────────────────
@@ -33,7 +65,6 @@ export default function MeusBriefings() {
             const u = await api.getMe()
             if (!u || u.message) return navigate('/login')
             setUsuario(u)
-
             const lista = await api.getMeusProjetos()
             if (Array.isArray(lista)) setProjetos(lista)
             setCarregando(false)
@@ -41,36 +72,26 @@ export default function MeusBriefings() {
         iniciar()
     }, [])
 
-    // ─── Abre/fecha accordion de um projeto e carrega as imagens ────────
+    // ─── Abre/fecha accordion ─────────────────────────────────────────────
     async function toggleProjeto(projetoId) {
-        if (projetoAberto === projetoId) {
-            setProjetoAberto(null)
-            return
-        }
+        if (projetoAberto === projetoId) { setProjetoAberto(null); return }
         setProjetoAberto(projetoId)
-
-        // Carrega imagens se ainda não carregou
         if (!imagensPorProjeto[projetoId]) {
             const imagens = await api.getImagensProjeto(projetoId)
             setImagensPorProjeto(prev => ({ ...prev, [projetoId]: imagens }))
         }
     }
 
-    // ─── Upload de imagens ────────────────────────────────────────────────
+    // ─── Upload de renders ────────────────────────────────────────────────
     async function handleUpload(projetoId, arquivos) {
         if (!arquivos || arquivos.length === 0) return
-
         setEnviando(true)
         setErro('')
         setSucesso('')
-
         try {
             const formData = new FormData()
             Array.from(arquivos).forEach(file => formData.append('imagens', file))
-
             await api.uploadImagensProjeto(projetoId, formData)
-
-            // Recarrega imagens do projeto
             const imagens = await api.getImagensProjeto(projetoId)
             setImagensPorProjeto(prev => ({ ...prev, [projetoId]: imagens }))
             setSucesso('Imagens enviadas com sucesso!')
@@ -82,10 +103,9 @@ export default function MeusBriefings() {
         }
     }
 
-    // ─── Deletar imagem ───────────────────────────────────────────────────
+    // ─── Deletar render ───────────────────────────────────────────────────
     async function handleDeletar(projetoId, imagemId) {
         if (!confirm('Tem certeza que deseja remover esta imagem?')) return
-
         try {
             await api.deletarImagemProjeto(projetoId, imagemId)
             setImagensPorProjeto(prev => ({
@@ -111,7 +131,6 @@ export default function MeusBriefings() {
 
             <div className="flex-1 flex flex-col min-w-0">
 
-                {/* Header */}
                 <header className="bg-[#2D3AC2] text-white px-6 py-4">
                     <h2 className="text-xl font-bold">Meus Briefings</h2>
                     <p className="text-blue-200 text-sm mt-0.5">
@@ -121,11 +140,9 @@ export default function MeusBriefings() {
 
                 <main className="flex-1 p-6 flex flex-col gap-4 overflow-y-auto">
 
-                    {/* Feedback global */}
                     {sucesso && (
                         <div className="flex items-center gap-2 px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
-                            <CheckCircle2 size={16} />
-                            {sucesso}
+                            <CheckCircle2 size={16} /> {sucesso}
                         </div>
                     )}
                     {erro && (
@@ -134,7 +151,6 @@ export default function MeusBriefings() {
                         </div>
                     )}
 
-                    {/* Lista de projetos */}
                     {projetos.length === 0 ? (
                         <div className="bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-20 gap-3">
                             <ImageIcon size={32} className="text-gray-300" />
@@ -143,14 +159,15 @@ export default function MeusBriefings() {
                     ) : (
                         <div className="flex flex-col gap-3">
                             {projetos.map(projeto => {
-                                const aberto = projetoAberto === projeto.id
+                                const aberto  = projetoAberto === projeto.id
                                 const imagens = imagensPorProjeto[projeto.id] || []
-                                const cores = STATUS_CORES[projeto.status] || STATUS_CORES['Recebido']
+                                const cores   = STATUS_CORES[projeto.status] || STATUS_CORES['Recebido']
+                                const arqs    = parsearArquivos(projeto.arquivos)
 
                                 return (
                                     <div key={projeto.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
 
-                                        {/* Cabeçalho do projeto — clicável */}
+                                        {/* Cabeçalho clicável */}
                                         <button
                                             onClick={() => toggleProjeto(projeto.id)}
                                             className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-gray-50 transition-colors"
@@ -164,15 +181,12 @@ export default function MeusBriefings() {
                                                     {projeto.datas && ` · ${projeto.datas}`}
                                                 </p>
                                             </div>
-
                                             <span className={`text-xs font-medium px-2 py-1 rounded-full shrink-0 ${cores.light} ${cores.text}`}>
                                                 {projeto.status}
                                             </span>
-
                                             <span className="text-xs text-gray-400 shrink-0">
-                                                {projeto.imagensProjeto?.length || 0} imagens
+                                                {projeto.imagensProjeto?.length || 0} renders
                                             </span>
-
                                             <ChevronDown
                                                 size={16}
                                                 className={`text-gray-400 shrink-0 transition-transform ${aberto ? 'rotate-180' : ''}`}
@@ -181,9 +195,9 @@ export default function MeusBriefings() {
 
                                         {/* Painel expandido */}
                                         {aberto && (
-                                            <div className="border-t border-gray-100 px-5 py-5 flex flex-col gap-4">
+                                            <div className="border-t border-gray-100 px-5 py-5 flex flex-col gap-5">
 
-                                                {/* Briefing do projeto */}
+                                                {/* ── Briefing texto ──────────────────────────── */}
                                                 {projeto.briefing && (
                                                     <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
                                                         <p className="text-xs font-semibold text-blue-700 mb-1">Briefing</p>
@@ -191,7 +205,58 @@ export default function MeusBriefings() {
                                                     </div>
                                                 )}
 
-                                                {/* Upload de imagens */}
+                                                {/* ── Arquivos do briefing ─────────────────────── */}
+                                                {(arqs.manual || arqs.mapa || arqs.briefing || arqs.logos?.length > 0) && (
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-gray-700 mb-2">Arquivos do briefing</p>
+                                                        <div className="flex flex-col gap-2">
+
+                                                            <LinkArquivo label="Manual do expositor" icone={FileText} arquivo={arqs.manual} />
+                                                            <LinkArquivo label="Mapa da feira"        icone={Map}      arquivo={arqs.mapa} />
+                                                            <LinkArquivo label="Briefing"             icone={FileText} arquivo={arqs.briefing} />
+
+                                                            {/* Logos — pode ser array */}
+                                                            {arqs.logos?.length > 0 && (
+                                                                <div className="flex flex-col gap-1.5">
+                                                                    <p className="text-xs font-medium text-gray-500 mt-1">Logos</p>
+                                                                    <div className="grid grid-cols-2 gap-2">
+                                                                        {arqs.logos.map((logo, i) => {
+                                                                            const url  = logo.url  || logo
+                                                                            const nome = logo.nome || `Logo ${i + 1}`
+                                                                            const isImagem = /\.(jpg|jpeg|png)$/i.test(nome)
+                                                                            return (
+                                                                                <div key={i} className="flex flex-col gap-1">
+                                                                                    {isImagem && (
+                                                                                        <div className="w-full h-20 rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                                                                                            <img
+                                                                                                src={url}
+                                                                                                alt={nome}
+                                                                                                className="w-full h-full object-contain p-1"
+                                                                                            />
+                                                                                        </div>
+                                                                                    )}
+                                                                                    <a
+                                                                                        href={url}
+                                                                                        target="_blank"
+                                                                                        rel="noopener noreferrer"
+                                                                                        download={nome}
+                                                                                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-200 transition-colors group"
+                                                                                    >
+                                                                                        <Image size={13} className="text-gray-400 group-hover:text-blue-500 shrink-0" />
+                                                                                        <span className="text-xs text-gray-600 group-hover:text-blue-700 truncate flex-1">{nome}</span>
+                                                                                        <Download size={11} className="text-gray-300 group-hover:text-blue-500 shrink-0" />
+                                                                                    </a>
+                                                                                </div>
+                                                                            )
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* ── Renders do projeto (upload pelo projetista) ── */}
                                                 <div>
                                                     <div className="flex items-center justify-between mb-3">
                                                         <p className="text-sm font-semibold text-gray-700">
@@ -231,7 +296,6 @@ export default function MeusBriefings() {
                                                                         alt="Render do projeto"
                                                                         className="w-full h-full object-cover"
                                                                     />
-                                                                    {/* Botão deletar aparece no hover */}
                                                                     <button
                                                                         onClick={() => handleDeletar(projeto.id, img.id)}
                                                                         className="absolute top-2 right-2 w-7 h-7 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"

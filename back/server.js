@@ -462,22 +462,50 @@ app.delete('/projetos/:id', authMiddleware, async (req, res, next) => {
 });
 
 app.post('/projetos/:id/arquivos', authMiddleware, upload.fields([
-    { name: 'manual', maxCount: 1 },
-    { name: 'mapa', maxCount: 1 },
-    { name: 'logos', maxCount: 5 },
+    { name: 'manual',   maxCount: 1 },
+    { name: 'mapa',     maxCount: 1 },
+    { name: 'logos',    maxCount: 5 },
     { name: 'briefing', maxCount: 1 },
 ]), async (req, res, next) => {
     try {
-        const arquivos = {};
-        if (req.files?.manual)  arquivos.manual  = req.files.manual[0].filename;
-        if (req.files?.mapa)    arquivos.mapa    = req.files.mapa[0].filename;
-        if (req.files?.logos)   arquivos.logos   = req.files.logos.map(f => f.filename);
-        if (req.files?.briefing) arquivos.briefing = req.files.briefing[0].filename;
+        const BASE_URL = process.env.BASE_URL || `http://localhost:3001`;
 
+        // Busca arquivos já existentes para não sobrescrever os que não foram reenviados
+        const projetoAtual = await prisma.projeto.findUnique({
+            where: { id: req.params.id },
+            select: { arquivos: true }
+        });
+        const arquivosAtuais = (projetoAtual?.arquivos && typeof projetoAtual.arquivos === 'object')
+            ? projetoAtual.arquivos
+            : {};
+
+        const arquivos = { ...arquivosAtuais };
+
+        if (req.files?.manual?.[0]) {
+            const f = req.files.manual[0];
+            arquivos.manual = { nome: f.originalname, url: `${BASE_URL}/uploads/${f.filename}` };
+        }
+        if (req.files?.mapa?.[0]) {
+            const f = req.files.mapa[0];
+            arquivos.mapa = { nome: f.originalname, url: `${BASE_URL}/uploads/${f.filename}` };
+        }
+        if (req.files?.briefing?.[0]) {
+            const f = req.files.briefing[0];
+            arquivos.briefing = { nome: f.originalname, url: `${BASE_URL}/uploads/${f.filename}` };
+        }
+        if (req.files?.logos?.length) {
+            arquivos.logos = req.files.logos.map(f => ({
+                nome: f.originalname,
+                url: `${BASE_URL}/uploads/${f.filename}`
+            }));
+        }
+
+        // Salva como Json nativo — sem JSON.stringify
         await prisma.projeto.update({
             where: { id: req.params.id },
-            data: { arquivos: JSON.stringify(arquivos) }
+            data: { arquivos }
         });
+
         res.json({ message: 'Arquivos enviados com sucesso', arquivos });
     } catch (err) { next(err); }
 });
@@ -788,21 +816,60 @@ app.get('/clientes', authMiddleware, async (req, res, next) => {
         });
         const isGestorOuDiretor = ['gerente', 'diretor'].includes(usuario?.cargo?.toLowerCase());
 
-        const where = isGestorOuDiretor ? {} : {
-            projetos: { some: { responsavelId: req.userId } }
-        };
+        if (isGestorOuDiretor) {
+            // Gerente/Diretor — vê todos os clientes com dados completos
+            const clientes = await prisma.cliente.findMany({
+                include: {
+                    projetos: {
+                        select: { id: true, nome: true, status: true, criadoEm: true, feira: true, local: true },
+                        orderBy: { criadoEm: 'desc' }
+                    }
+                },
+                orderBy: { nomeEmpresa: 'asc' }
+            });
+            return res.json(clientes.map(c => ({ ...c, proprio: true })));
+        }
 
-        const clientes = await prisma.cliente.findMany({
-            where,
+        // Vendedor — busca todos os clientes para montar a lista completa
+        const todosClientes = await prisma.cliente.findMany({
             include: {
                 projetos: {
-                    select: { id: true, nome: true, status: true, criadoEm: true },
+                    select: {
+                        id: true, nome: true, status: true, criadoEm: true,
+                        feira: true, local: true, responsavelId: true,
+                        responsavel: { select: { name: true } }
+                    },
                     orderBy: { criadoEm: 'desc' }
                 }
             },
             orderBy: { nomeEmpresa: 'asc' }
         });
-        res.json(clientes);
+
+        const resposta = todosClientes.map(cliente => {
+            // Verifica se ao menos um projeto do cliente pertence a este vendedor
+            const proprio = cliente.projetos.some(p => p.responsavelId === req.userId);
+
+            if (proprio) {
+                // Retorna dados completos — filtra projetos só os do vendedor
+                const projetosProprios = cliente.projetos.filter(p => p.responsavelId === req.userId);
+                return {
+                    ...cliente,
+                    projetos: projetosProprios,
+                    proprio: true,
+                };
+            }
+
+            // Retorna apenas nome e vendedor responsável — sem dados sensíveis
+            const vendedor = cliente.projetos[0]?.responsavel?.name || null;
+            return {
+                id: cliente.id,
+                nomeEmpresa: cliente.nomeEmpresa,
+                vendedorNome: vendedor,
+                proprio: false,
+            };
+        });
+
+        res.json(resposta);
     } catch (err) { next(err); }
 });
 
