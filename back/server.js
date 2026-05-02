@@ -890,14 +890,51 @@ app.get('/clientes/:id', authMiddleware, async (req, res, next) => {
 });
 
 app.put('/clientes/:id', authMiddleware, async (req, res, next) => {
-    // Desestrutura para evitar mass assignment em campos não permitidos
     const { nomeEmpresa, nomeFantasia, cnpj, cpf, email, telefone, endereco, cidade, estado, cep, responsavel } = req.body;
     try {
-        const cliente = await prisma.cliente.update({
+        const [usuario, cliente] = await Promise.all([
+            prisma.user.findUnique({ where: { id: req.userId }, select: { cargo: true } }),
+            prisma.cliente.findUnique({
+                where: { id: req.params.id },
+                include: { projetos: { select: { responsavelId: true } } }
+            })
+        ]);
+        if (!cliente) return res.status(404).json({ message: 'Cliente não encontrado' });
+
+        const isGestor = ['gerente', 'diretor'].includes(usuario?.cargo?.toLowerCase());
+        // Vendedor só pode editar se for responsável por ao menos um projeto deste cliente
+        const isVendedorDoCliente = cliente.projetos.some(p => p.responsavelId === req.userId);
+
+        if (!isGestor && !isVendedorDoCliente)
+            return res.status(403).json({ message: 'Sem permissão para editar este cliente' });
+
+        const atualizado = await prisma.cliente.update({
             where: { id: req.params.id },
             data: { nomeEmpresa, nomeFantasia, cnpj, cpf, email, telefone, endereco, cidade, estado, cep, responsavel }
         });
-        res.json(cliente);
+        res.json(atualizado);
+    } catch (err) { next(err); }
+});
+
+// Exclusão de cliente — apenas gerente e diretor
+app.delete('/clientes/:id', authMiddleware, async (req, res, next) => {
+    try {
+        const usuario = await prisma.user.findUnique({
+            where: { id: req.userId },
+            select: { cargo: true }
+        });
+        const isGestor = ['gerente', 'diretor'].includes(usuario?.cargo?.toLowerCase());
+        if (!isGestor)
+            return res.status(403).json({ message: 'Apenas gerente ou diretor pode excluir clientes' });
+
+        // Remove vínculo dos projetos antes de deletar (evita erro de FK)
+        await prisma.projeto.updateMany({
+            where: { clienteId: req.params.id },
+            data: { clienteId: null }
+        });
+
+        await prisma.cliente.delete({ where: { id: req.params.id } });
+        res.json({ message: 'Cliente excluído com sucesso' });
     } catch (err) { next(err); }
 });
 

@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Building2, User, ChevronDown, ChevronUp, Phone, Mail, MapPin, FileText } from 'lucide-react'
+import {
+    Search, Building2, User, ChevronDown, ChevronUp,
+    Phone, Mail, MapPin, FileText, Pencil, Trash2, X, Save
+} from 'lucide-react'
 import * as api from '@/services/api'
 import Sidebar from '@/components/Sidebar'
 
@@ -14,8 +17,115 @@ const STATUS_CORES = {
     'Reprovado':    'bg-red-50 text-red-800',
 }
 
+const CAMPOS_CLIENTE = [
+    { name: 'nomeEmpresa',  label: 'Razão Social',      required: true,  colSpan: 2 },
+    { name: 'nomeFantasia', label: 'Nome Fantasia',      required: false, colSpan: 1 },
+    { name: 'cnpj',         label: 'CNPJ',               required: false, colSpan: 1, placeholder: '00.000.000/0000-00' },
+    { name: 'cpf',          label: 'CPF',                required: false, colSpan: 1, placeholder: '000.000.000-00' },
+    { name: 'responsavel',  label: 'Responsável',        required: false, colSpan: 1 },
+    { name: 'email',        label: 'E-mail',             required: false, colSpan: 2, type: 'email' },
+    { name: 'telefone',     label: 'Telefone',           required: false, colSpan: 1 },
+    { name: 'cep',          label: 'CEP',                required: false, colSpan: 1 },
+    { name: 'endereco',     label: 'Endereço',           required: false, colSpan: 2 },
+    { name: 'cidade',       label: 'Cidade',             required: false, colSpan: 1 },
+    { name: 'estado',       label: 'Estado',             required: false, colSpan: 1, placeholder: 'SP' },
+]
+
+// ─── Modal de edição ───────────────────────────────────────────────────────
+function ModalEdicao({ cliente, onSalvar, onFechar }) {
+    const [form, setForm]       = useState({ ...cliente })
+    const [salvando, setSalvando] = useState(false)
+    const [erro, setErro]       = useState('')
+
+    function handleChange(e) {
+        setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+    }
+
+    async function handleSalvar() {
+        if (!form.nomeEmpresa?.trim()) {
+            setErro('Razão Social é obrigatória')
+            return
+        }
+        setSalvando(true)
+        setErro('')
+        try {
+            await onSalvar(form)
+        } catch (err) {
+            setErro('Erro ao salvar: ' + err.message)
+        } finally {
+            setSalvando(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
+
+                {/* Cabeçalho */}
+                <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-base font-bold text-gray-900">Editar cliente</h3>
+                        <p className="text-sm text-gray-400 mt-0.5">{cliente.nomeEmpresa}</p>
+                    </div>
+                    <button onClick={onFechar} className="text-gray-400 hover:text-gray-600 transition-colors">
+                        <X size={18} />
+                    </button>
+                </div>
+
+                {/* Formulário */}
+                <div className="flex-1 overflow-y-auto px-6 py-5">
+                    <div className="grid grid-cols-2 gap-3">
+                        {CAMPOS_CLIENTE.map(({ name, label, required, colSpan, type, placeholder }) => (
+                            <div
+                                key={name}
+                                className={`flex flex-col gap-1 ${colSpan === 2 ? 'col-span-2' : ''}`}
+                            >
+                                <label className="text-xs font-medium text-gray-500">
+                                    {label} {required && <span className="text-red-500">*</span>}
+                                </label>
+                                <input
+                                    name={name}
+                                    type={type || 'text'}
+                                    value={form[name] || ''}
+                                    onChange={handleChange}
+                                    placeholder={placeholder || ''}
+                                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
+                                />
+                            </div>
+                        ))}
+                    </div>
+
+                    {erro && (
+                        <div className="mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                            {erro}
+                        </div>
+                    )}
+                </div>
+
+                {/* Rodapé */}
+                <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+                    <button
+                        onClick={onFechar}
+                        className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleSalvar}
+                        disabled={salvando}
+                        className="flex items-center gap-1.5 px-5 py-2 text-sm font-medium bg-[#2D3AC2] hover:bg-[#232fa8] text-white rounded-lg transition-colors disabled:opacity-50"
+                    >
+                        <Save size={14} />
+                        {salvando ? 'Salvando...' : 'Salvar'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 // ─── Card de cliente próprio (visão completa) ──────────────────────────────
-function CardClienteCompleto({ cliente }) {
+function CardClienteCompleto({ cliente, podeEditar, podeExcluir, onEditar, onExcluir }) {
     const [aberto, setAberto] = useState(false)
 
     return (
@@ -29,9 +139,7 @@ function CardClienteCompleto({ cliente }) {
                     <Building2 size={18} className="text-[#2D3AC2]" />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">
-                        {cliente.nomeEmpresa}
-                    </p>
+                    <p className="text-sm font-semibold text-gray-900 truncate">{cliente.nomeEmpresa}</p>
                     {cliente.nomeFantasia && (
                         <p className="text-xs text-gray-400 truncate">{cliente.nomeFantasia}</p>
                     )}
@@ -50,6 +158,26 @@ function CardClienteCompleto({ cliente }) {
             {/* Detalhes expandidos */}
             {aberto && (
                 <div className="border-t border-gray-100 px-5 py-5 flex flex-col gap-5">
+
+                    {/* Ações */}
+                    <div className="flex items-center gap-2 justify-end">
+                        {podeEditar && (
+                            <button
+                                onClick={() => onEditar(cliente)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                <Pencil size={13} /> Editar dados
+                            </button>
+                        )}
+                        {podeExcluir && (
+                            <button
+                                onClick={() => onExcluir(cliente)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                                <Trash2 size={13} /> Excluir
+                            </button>
+                        )}
+                    </div>
 
                     {/* Dados cadastrais */}
                     <div className="grid grid-cols-2 gap-3">
@@ -159,32 +287,53 @@ function CardClienteRestrito({ cliente }) {
 // COMPONENTE PRINCIPAL
 // ══════════════════════════════════════════════════════════════════════════
 export default function Clientes() {
-    const [usuario, setUsuario]       = useState(null)
-    const [clientes, setClientes]     = useState([])
-    const [carregando, setCarregando] = useState(true)
-    const [busca, setBusca]           = useState('')
+    const [usuario, setUsuario]         = useState(null)
+    const [clientes, setClientes]       = useState([])
+    const [carregando, setCarregando]   = useState(true)
+    const [busca, setBusca]             = useState('')
+    const [clienteEditando, setClienteEditando] = useState(null)
+    const [erro, setErro]               = useState('')
     const navigate = useNavigate()
 
     const isGestor = ['gerente', 'diretor'].includes(usuario?.cargo?.toLowerCase())
+    const isVendedor = usuario?.cargo?.toLowerCase() === 'vendedor'
 
     useEffect(() => {
         async function iniciar() {
             const u = await api.getMe()
             if (!u || u.message) return navigate('/login')
             setUsuario(u)
-
-            const lista = await api.getClientes()
-            if (Array.isArray(lista)) setClientes(lista)
+            await carregarClientes()
             setCarregando(false)
         }
         iniciar()
     }, [])
 
-    // Separa clientes próprios dos de outros vendedores
+    async function carregarClientes() {
+        const lista = await api.getClientes()
+        if (Array.isArray(lista)) setClientes(lista)
+    }
+
+    async function handleSalvar(dadosAtualizados) {
+        await api.atualizarCliente(clienteEditando.id, dadosAtualizados)
+        await carregarClientes()
+        setClienteEditando(null)
+    }
+
+    async function handleExcluir(cliente) {
+        if (!confirm(`Tem certeza que deseja excluir "${cliente.nomeEmpresa}"? Esta ação não pode ser desfeita.`)) return
+        try {
+            await api.deletarCliente(cliente.id)
+            await carregarClientes()
+        } catch (err) {
+            setErro('Erro ao excluir cliente: ' + err.message)
+        }
+    }
+
+    // Separa próprios dos de outros vendedores
     const clientesProprios = clientes.filter(c => c.proprio !== false)
     const clientesOutros   = clientes.filter(c => c.proprio === false)
 
-    // Aplica busca apenas nos clientes visíveis com dados completos
     const propriosFiltrados = clientesProprios.filter(c =>
         !busca ||
         c.nomeEmpresa?.toLowerCase().includes(busca.toLowerCase()) ||
@@ -209,7 +358,6 @@ export default function Clientes() {
 
             <div className="flex-1 flex flex-col min-w-0">
 
-                {/* Header */}
                 <header className="bg-[#2D3AC2] text-white px-6 py-4">
                     <h2 className="text-xl font-bold">Clientes</h2>
                     <p className="text-blue-200 text-sm mt-0.5">
@@ -221,6 +369,12 @@ export default function Clientes() {
                 </header>
 
                 <main className="flex-1 p-6 flex flex-col gap-5 overflow-y-auto">
+
+                    {erro && (
+                        <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                            {erro}
+                        </div>
+                    )}
 
                     {/* Busca */}
                     <div className="relative max-w-sm">
@@ -245,7 +399,7 @@ export default function Clientes() {
                         </div>
                     )}
 
-                    {/* ── Clientes próprios (visão completa) ──────────────── */}
+                    {/* ── Clientes próprios / todos (visão completa) ─────── */}
                     {propriosFiltrados.length > 0 && (
                         <div className="flex flex-col gap-3">
                             {!isGestor && (
@@ -253,19 +407,20 @@ export default function Clientes() {
                                     Meus clientes ({propriosFiltrados.length})
                                 </p>
                             )}
-                            {isGestor && busca && (
-                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">
-                                    Resultados ({propriosFiltrados.length})
-                                </p>
-                            )}
                             {propriosFiltrados.map(c => (
-                                <CardClienteCompleto key={c.id} cliente={c} />
+                                <CardClienteCompleto
+                                    key={c.id}
+                                    cliente={c}
+                                    podeEditar={isGestor || isVendedor}
+                                    podeExcluir={isGestor}
+                                    onEditar={setClienteEditando}
+                                    onExcluir={handleExcluir}
+                                />
                             ))}
                         </div>
                     )}
 
                     {/* ── Clientes de outros vendedores (visão restrita) ─── */}
-                    {/* Só aparece para vendedores, não para gerente/diretor   */}
                     {!isGestor && outrosFiltrados.length > 0 && (
                         <div className="flex flex-col gap-2">
                             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">
@@ -280,7 +435,7 @@ export default function Clientes() {
                         </div>
                     )}
 
-                    {/* Sem resultados na busca */}
+                    {/* Sem resultados */}
                     {busca && propriosFiltrados.length === 0 && outrosFiltrados.length === 0 && (
                         <div className="bg-white rounded-xl border border-gray-100 shadow-sm flex items-center justify-center py-12">
                             <p className="text-sm text-gray-400">Nenhum cliente encontrado para "{busca}".</p>
@@ -288,6 +443,15 @@ export default function Clientes() {
                     )}
                 </main>
             </div>
+
+            {/* Modal de edição */}
+            {clienteEditando && (
+                <ModalEdicao
+                    cliente={clienteEditando}
+                    onSalvar={handleSalvar}
+                    onFechar={() => setClienteEditando(null)}
+                />
+            )}
         </div>
     )
 }
