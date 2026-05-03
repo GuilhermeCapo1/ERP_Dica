@@ -29,11 +29,7 @@ model Projeto {
   local          String?
   briefing       String?
   dataLimite     DateTime?
-
-  // Arquivos de briefing salvos como JSON nativo no MongoDB
-  // Estrutura: { manual?: {url, nome}, mapa?: {url, nome}, briefing?: {url, nome}, logos?: [{url, nome}] }
   arquivos       Json?
-
   status         String          @default("Recebido")
   tipo           String?
   responsavelId  String?         @db.ObjectId
@@ -53,6 +49,10 @@ model Projeto {
   tipoDocumento        String?
   condicoesPagamento   String?
   observacoesAprovacao String?
+
+  // Orçamento aprovado — preenchido automaticamente na aprovação
+  // O memorial aprovado vem via orcamentoAprovado.memorial (include no Prisma)
+  orcamentoAprovadoId  String?  @db.ObjectId
 }
 
 model ImagemProjeto {

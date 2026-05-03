@@ -127,6 +127,7 @@ function ModalEdicao({ cliente, onSalvar, onFechar }) {
 // ─── Card de cliente próprio (visão completa) ──────────────────────────────
 function CardClienteCompleto({ cliente, podeEditar, podeExcluir, onEditar, onExcluir }) {
     const [aberto, setAberto] = useState(false)
+    const navigate = useNavigate()
 
     return (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -235,14 +236,15 @@ function CardClienteCompleto({ cliente, podeEditar, podeExcluir, onEditar, onExc
                             </p>
                             <div className="flex flex-col gap-2">
                                 {cliente.projetos.map(p => (
-                                    <div
+                                    <button
                                         key={p.id}
-                                        className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-100"
+                                        onClick={() => navigate(`/projetos/${p.id}/detalhes`)}
+                                        className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-100 hover:border-[#2D3AC2]/30 hover:bg-blue-50/30 transition-all text-left group"
                                     >
                                         <div className="flex items-center gap-2 min-w-0">
                                             <FileText size={13} className="text-gray-400 shrink-0" />
                                             <div className="min-w-0">
-                                                <p className="text-sm font-medium text-gray-800 truncate">{p.nome}</p>
+                                                <p className="text-sm font-medium text-gray-800 truncate group-hover:text-[#2D3AC2]">{p.nome}</p>
                                                 {(p.feira || p.local) && (
                                                     <p className="text-xs text-gray-400 truncate">
                                                         {[p.feira, p.local].filter(Boolean).join(' · ')}
@@ -250,10 +252,15 @@ function CardClienteCompleto({ cliente, podeEditar, podeExcluir, onEditar, onExc
                                                 )}
                                             </div>
                                         </div>
-                                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ml-3 ${STATUS_CORES[p.status] || 'bg-gray-100 text-gray-500'}`}>
-                                            {p.status}
-                                        </span>
-                                    </div>
+                                        <div className="flex items-center gap-2 shrink-0 ml-3">
+                                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_CORES[p.status] || 'bg-gray-100 text-gray-500'}`}>
+                                                {p.status}
+                                            </span>
+                                            <span className="text-xs text-[#2D3AC2] opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Ver →
+                                            </span>
+                                        </div>
+                                    </button>
                                 ))}
                             </div>
                         </div>

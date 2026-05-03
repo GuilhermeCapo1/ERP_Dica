@@ -288,6 +288,39 @@ app.get('/projetistas', authMiddleware, async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
+// Detalhes completos de um projeto — usado na página de revisão pelo cliente
+app.get('/projetos/:id/detalhes', authMiddleware, async (req, res, next) => {
+    try {
+        const projeto = await prisma.projeto.findUnique({
+            where: { id: req.params.id },
+            include: {
+                responsavel:   { select: { id: true, name: true, cargo: true } },
+                projetista:    { select: { id: true, name: true } },
+                clienteRef:    true,
+                imagensProjeto: { orderBy: { ordem: 'asc' } },
+                memoriais: {
+                    include: {
+                        criadoPor: { select: { name: true } },
+                        orcamento: {
+                            include: { criadoPor: { select: { name: true } } }
+                        }
+                    },
+                    orderBy: { versao: 'desc' }
+                },
+                orcamentos: {
+                    include: {
+                        memorial:  { select: { versao: true } },
+                        criadoPor: { select: { name: true } }
+                    },
+                    orderBy: { versao: 'desc' }
+                }
+            }
+        })
+        if (!projeto) return res.status(404).json({ message: 'Projeto não encontrado' })
+        res.json(projeto)
+    } catch (err) { next(err) }
+})
+
 app.get('/projetos', authMiddleware, async (req, res, next) => {
     try {
         const { status, responsavelId, cliente } = req.query;
@@ -435,6 +468,17 @@ app.patch('/projetos/:id/resultado', authMiddleware, async (req, res, next) => {
             }
         }
 
+        // Busca o orçamento aprovado — maior versão com enviado: true
+        let orcamentoAprovadoId = undefined
+        if (resultado === 'aprovado') {
+            const orcamentoAprovado = await prisma.orcamento.findFirst({
+                where: { projetoId: req.params.id, enviado: true },
+                orderBy: { versao: 'desc' },
+                select: { id: true }
+            })
+            orcamentoAprovadoId = orcamentoAprovado?.id
+        }
+
         const projetoAtualizado = await prisma.projeto.update({
             where: { id: req.params.id },
             data: {
@@ -445,7 +489,8 @@ app.patch('/projetos/:id/resultado', authMiddleware, async (req, res, next) => {
                     formaPagamento,
                     tipoDocumento,
                     condicoesPagamento,
-                    observacoesAprovacao: observacoes
+                    observacoesAprovacao: observacoes,
+                    ...(orcamentoAprovadoId && { orcamentoAprovadoId })
                 })
             }
         });

@@ -53,6 +53,10 @@ export async function getProjetos(filtros = {}) {
     return request(`${API_URL}/projetos?${params}`)
 }
 
+export async function getProjetoDetalhes(projetoId) {
+    return request(`${API_URL}/projetos/${projetoId}/detalhes`)
+}
+
 export async function getMeusProjetos() {
     return request(`${API_URL}/meus-projetos`)
 }
