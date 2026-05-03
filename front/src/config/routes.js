@@ -58,6 +58,14 @@ export const ROTAS = [
         cargos: ['vendedor', 'gerente', 'projetista', 'diretor'],
     },
     {
+        // Rota de detalhes do projeto — acessada via clientes, não aparece no menu
+        path: '/projetos/:projetoId/detalhes',
+        label: '',
+        icone: LayoutDashboard,
+        cargos: ['vendedor', 'gerente', 'projetista', 'diretor'],
+        menuOculto: true,
+    },
+    {
         path: '/relatorios',
         label: 'Relatórios',
         icone: BarChart3,
@@ -77,11 +85,25 @@ export function getRotasPorCargo(cargo) {
 }
 
 /**
+ * Converte um path com parâmetros (:param) em regex para comparação.
+ * Ex: '/projetos/:id/detalhes' → /^\/projetos\/[^/]+\/detalhes$/
+ */
+function pathParaRegex(path) {
+    const escaped = path.replace(/:[^/]+/g, '[^/]+').replace(/\//g, '\\/')
+    return new RegExp(`^${escaped}$`)
+}
+
+/**
  * Verifica se um cargo tem acesso a uma rota.
+ * Suporta rotas dinâmicas com parâmetros (ex: /projetos/:id/detalhes).
  */
 export function temAcesso(cargo, rota) {
     if (!cargo || !rota) return false
-    return getRotasPorCargo(cargo).includes(rota.toLowerCase())
+    const cargoNormalizado = cargo.toLowerCase()
+    return ROTAS.some(r =>
+        pathParaRegex(r.path).test(rota) &&
+        r.cargos.map(c => c.toLowerCase()).includes(cargoNormalizado)
+    )
 }
 
 /**

@@ -107,63 +107,127 @@ function ModalVoltarStatus({ projeto, onConfirmar, onFechar }) {
 
 // ─── Modal de Aprovação/Reprovação ─────────────────────────────────────────
 function ModalResultado({ projeto, onConfirmar, onFechar }) {
-    const [resultado, setResultado] = useState('') // 'aprovado' | 'reprovado'
-    const [etapa, setEtapa] = useState(1) // 1 = escolher resultado | 2 = dados do cliente
+    const [resultado, setResultado]   = useState('') // 'aprovado' | 'reprovado'
+    const [etapa, setEtapa]           = useState(1)  // 1=resultado | 2=cliente | 3=dados+condicoes
     const [carregando, setCarregando] = useState(false)
-    const [erro, setErro] = useState('')
+    const [buscandoClientes, setBuscandoClientes] = useState(false)
+    const [erro, setErro]             = useState('')
+
+    // Lista de clientes existentes para seleção
+    const [clientesExistentes, setClientesExistentes] = useState([])
+    const [modoCliente, setModoCliente] = useState('') // 'existente' | 'novo'
+    const [clienteSelecionado, setClienteSelecionado] = useState(null)
+    const [buscaCliente, setBuscaCliente] = useState('')
 
     // Dados do cliente
     const [dadosCliente, setDadosCliente] = useState({
         nomeEmpresa: projeto.cliente || '',
-        nomeFantasia: '',
-        cnpj: '',
-        cpf: '',
-        email: '',
-        telefone: '',
-        endereco: '',
-        cidade: '',
-        estado: '',
-        cep: '',
-        responsavel: '',
+        nomeFantasia: '', cnpj: '', cpf: '', email: '',
+        telefone: '', endereco: '', cidade: '', estado: '',
+        cep: '', responsavel: '',
     })
+
+    // Avisos de duplicidade
+    const [aviso, setAviso] = useState('')
 
     // Condições comerciais
     const [condicoes, setCondicoes] = useState({
-        formaPagamento: '',   // 'boleto' | 'pix'
-        tipoDocumento: '',    // 'nota_fiscal' | 'recibo_locacao'
-        condicoesPagamento: '',
-        observacoes: '',
+        formaPagamento: '', tipoDocumento: '',
+        condicoesPagamento: '', observacoes: '',
     })
 
+    // ── Carrega clientes ao avançar para etapa 2 ──────────────────────────
+    async function carregarClientes() {
+        setBuscandoClientes(true)
+        try {
+            const lista = await api.getClientes()
+            // Só mostra clientes com dados completos (próprios do vendedor)
+            setClientesExistentes(Array.isArray(lista) ? lista.filter(c => c.proprio !== false) : [])
+        } catch {
+            setClientesExistentes([])
+        } finally {
+            setBuscandoClientes(false)
+        }
+    }
+
     function handleDadosChange(e) {
-        setDadosCliente(prev => ({ ...prev, [e.target.name]: e.target.value }))
+        const { name, value } = e.target
+        setDadosCliente(prev => ({ ...prev, [name]: value }))
+
+        // Valida duplicidade de CNPJ/CPF em tempo real
+        if (name === 'cnpj' && value.length >= 14) {
+            const duplicado = clientesExistentes.find(
+                c => c.cnpj && c.cnpj.replace(/\D/g, '') === value.replace(/\D/g, '') &&
+                c.id !== clienteSelecionado?.id
+            )
+            setAviso(duplicado ? `⚠️ CNPJ já cadastrado para "${duplicado.nomeEmpresa}"` : '')
+        } else if (name === 'cpf' && value.length >= 11) {
+            const duplicado = clientesExistentes.find(
+                c => c.cpf && c.cpf.replace(/\D/g, '') === value.replace(/\D/g, '') &&
+                c.id !== clienteSelecionado?.id
+            )
+            setAviso(duplicado ? `⚠️ CPF já cadastrado para "${duplicado.nomeEmpresa}"` : '')
+        } else if (name === 'cnpj' || name === 'cpf') {
+            setAviso('')
+        }
     }
 
     function handleCondicoesChange(e) {
         setCondicoes(prev => ({ ...prev, [e.target.name]: e.target.value }))
     }
 
-    function avancar() {
+    // ── Seleciona cliente existente e preenche o formulário ───────────────
+    function selecionarClienteExistente(cliente) {
+        setClienteSelecionado(cliente)
+        setDadosCliente({
+            nomeEmpresa:  cliente.nomeEmpresa  || '',
+            nomeFantasia: cliente.nomeFantasia || '',
+            cnpj:         cliente.cnpj         || '',
+            cpf:          cliente.cpf          || '',
+            email:        cliente.email        || '',
+            telefone:     cliente.telefone     || '',
+            endereco:     cliente.endereco     || '',
+            cidade:       cliente.cidade       || '',
+            estado:       cliente.estado       || '',
+            cep:          cliente.cep          || '',
+            responsavel:  cliente.responsavel  || '',
+        })
+        setAviso('')
+        setEtapa(3)
+    }
+
+    // ── Fluxo de navegação entre etapas ──────────────────────────────────
+    async function avancarEtapa1() {
         if (!resultado) return
-        if (resultado === 'reprovado') {
-            handleSalvar()
-            return
-        }
+        if (resultado === 'reprovado') { handleSalvar(); return }
+        await carregarClientes()
         setEtapa(2)
     }
 
+    function avancarEtapa2() {
+        if (!modoCliente) { setErro('Selecione uma opção'); return }
+        setErro('')
+        if (modoCliente === 'novo') {
+            setClienteSelecionado(null)
+            setDadosCliente({
+                nomeEmpresa: projeto.cliente || '', nomeFantasia: '',
+                cnpj: '', cpf: '', email: '', telefone: '',
+                endereco: '', cidade: '', estado: '', cep: '', responsavel: '',
+            })
+            setEtapa(3)
+        }
+        // Se 'existente', a seleção já vai para etapa 3 direto
+    }
+
+    // ── Salva ─────────────────────────────────────────────────────────────
     async function handleSalvar() {
         if (resultado === 'aprovado') {
-            if (!dadosCliente.nomeEmpresa) {
-                setErro('Nome da empresa é obrigatório')
-                return
-            }
+            if (!dadosCliente.nomeEmpresa?.trim()) { setErro('Nome da empresa é obrigatório'); return }
             if (!condicoes.formaPagamento || !condicoes.tipoDocumento) {
-                setErro('Forma de pagamento e tipo de documento são obrigatórios')
-                return
+                setErro('Forma de pagamento e tipo de documento são obrigatórios'); return
             }
+            if (aviso) { setErro('Corrija os dados duplicados antes de continuar'); return }
         }
-
         setCarregando(true)
         setErro('')
         try {
@@ -178,19 +242,46 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
         }
     }
 
+    // ── Clientes filtrados pela busca ─────────────────────────────────────
+    const clientesFiltrados = clientesExistentes.filter(c =>
+        !buscaCliente ||
+        c.nomeEmpresa?.toLowerCase().includes(buscaCliente.toLowerCase()) ||
+        c.cnpj?.includes(buscaCliente) ||
+        c.cpf?.includes(buscaCliente)
+    )
+
+    // ── Título por etapa ──────────────────────────────────────────────────
+    const titulos = {
+        1: 'Resultado do projeto',
+        2: 'Vincular cliente',
+        3: clienteSelecionado ? 'Confirmar dados do cliente' : 'Cadastrar novo cliente',
+    }
+
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
 
                 {/* Cabeçalho */}
                 <div className="px-6 py-5 border-b border-gray-100">
-                    <h3 className="text-base font-bold text-gray-900">Resultado do projeto</h3>
-                    <p className="text-sm text-gray-400 mt-0.5">{projeto.nome}</p>
+                    <div className="flex items-center gap-2 mb-0.5">
+                        {/* Indicador de etapas */}
+                        {resultado === 'aprovado' && (
+                            <div className="flex items-center gap-1 mr-2">
+                                {[1,2,3].map(n => (
+                                    <div key={n} className={`w-2 h-2 rounded-full transition-colors
+                                        ${etapa >= n ? 'bg-[#2D3AC2]' : 'bg-gray-200'}`}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                        <h3 className="text-base font-bold text-gray-900">{titulos[etapa]}</h3>
+                    </div>
+                    <p className="text-sm text-gray-400">{projeto.nome}</p>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-6 py-5">
 
-                    {/* Etapa 1: Escolher resultado */}
+                    {/* ── ETAPA 1: Aprovado ou Reprovado ───────────────── */}
                     {etapa === 1 && (
                         <div className="flex flex-col gap-4">
                             <p className="text-sm text-gray-600">
@@ -200,10 +291,7 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                                 <button
                                     onClick={() => setResultado('aprovado')}
                                     className={`flex items-center gap-3 px-4 py-4 rounded-xl border-2 transition-all text-left
-                                        ${resultado === 'aprovado'
-                                            ? 'border-green-500 bg-green-50'
-                                            : 'border-gray-200 hover:border-green-300'
-                                        }`}
+                                        ${resultado === 'aprovado' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}
                                 >
                                     <CheckCircle size={24} className={resultado === 'aprovado' ? 'text-green-600' : 'text-gray-300'} />
                                     <div>
@@ -214,10 +302,7 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                                 <button
                                     onClick={() => setResultado('reprovado')}
                                     className={`flex items-center gap-3 px-4 py-4 rounded-xl border-2 transition-all text-left
-                                        ${resultado === 'reprovado'
-                                            ? 'border-red-500 bg-red-50'
-                                            : 'border-gray-200 hover:border-red-300'
-                                        }`}
+                                        ${resultado === 'reprovado' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-red-300'}`}
                                 >
                                     <XCircle size={24} className={resultado === 'reprovado' ? 'text-red-600' : 'text-gray-300'} />
                                     <div>
@@ -229,118 +314,158 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                         </div>
                     )}
 
-                    {/* Etapa 2: Dados do cliente + condições (só se aprovado) */}
-                    {etapa === 2 && resultado === 'aprovado' && (
-                        <div className="flex flex-col gap-6">
+                    {/* ── ETAPA 2: Selecionar cliente existente ou novo ─── */}
+                    {etapa === 2 && (
+                        <div className="flex flex-col gap-4">
+                            <p className="text-sm text-gray-600">
+                                Este cliente já está cadastrado no sistema?
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    onClick={() => setModoCliente('existente')}
+                                    className={`flex flex-col gap-1 px-4 py-4 rounded-xl border-2 transition-all text-left
+                                        ${modoCliente === 'existente' ? 'border-[#2D3AC2] bg-blue-50' : 'border-gray-200 hover:border-[#2D3AC2]/40'}`}
+                                >
+                                    <p className="text-sm font-semibold text-gray-900">Cliente existente</p>
+                                    <p className="text-xs text-gray-400">Selecionar de um cadastro já existente</p>
+                                </button>
+                                <button
+                                    onClick={() => { setModoCliente('novo'); setClienteSelecionado(null) }}
+                                    className={`flex flex-col gap-1 px-4 py-4 rounded-xl border-2 transition-all text-left
+                                        ${modoCliente === 'novo' ? 'border-[#2D3AC2] bg-blue-50' : 'border-gray-200 hover:border-[#2D3AC2]/40'}`}
+                                >
+                                    <p className="text-sm font-semibold text-gray-900">Novo cliente</p>
+                                    <p className="text-xs text-gray-400">Cadastrar um cliente novo</p>
+                                </button>
+                            </div>
+
+                            {/* Lista de clientes existentes */}
+                            {modoCliente === 'existente' && (
+                                <div className="flex flex-col gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar por nome, CNPJ ou CPF..."
+                                        value={buscaCliente}
+                                        onChange={e => setBuscaCliente(e.target.value)}
+                                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
+                                    />
+                                    {buscandoClientes ? (
+                                        <p className="text-sm text-gray-400 text-center py-4">Carregando...</p>
+                                    ) : clientesFiltrados.length === 0 ? (
+                                        <p className="text-sm text-gray-400 text-center py-4">Nenhum cliente encontrado.</p>
+                                    ) : (
+                                        <div className="flex flex-col gap-1.5 max-h-52 overflow-y-auto pr-1">
+                                            {clientesFiltrados.map(c => (
+                                                <button
+                                                    key={c.id}
+                                                    onClick={() => selecionarClienteExistente(c)}
+                                                    className="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-[#2D3AC2]/40 hover:bg-blue-50 transition-all text-left group"
+                                                >
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-medium text-gray-800 truncate group-hover:text-[#2D3AC2]">
+                                                            {c.nomeEmpresa}
+                                                        </p>
+                                                        <p className="text-xs text-gray-400">
+                                                            {c.cnpj || c.cpf || 'Sem documento'}
+                                                        </p>
+                                                    </div>
+                                                    <span className="text-xs text-[#2D3AC2] opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+                                                        Selecionar →
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── ETAPA 3: Dados do cliente + condições ────────── */}
+                    {etapa === 3 && (
+                        <div className="flex flex-col gap-5">
+
+                            {/* Badge de cliente selecionado */}
+                            {clienteSelecionado && (
+                                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <div className="w-2 h-2 rounded-full bg-[#2D3AC2] shrink-0" />
+                                    <p className="text-sm text-blue-800">
+                                        Editando cadastro de <span className="font-semibold">{clienteSelecionado.nomeEmpresa}</span>
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Aviso de duplicidade */}
+                            {aviso && (
+                                <div className="px-3 py-2 bg-yellow-50 border border-yellow-300 rounded-lg text-sm text-yellow-800">
+                                    {aviso}
+                                </div>
+                            )}
 
                             {/* Dados da empresa */}
                             <div>
                                 <p className="text-sm font-semibold text-gray-700 mb-3">Dados da empresa contratante</p>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="col-span-2 flex flex-col gap-1">
-                                        <label className="text-xs font-medium text-gray-500">
-                                            Razão Social / Nome da Empresa <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            name="nomeEmpresa"
-                                            value={dadosCliente.nomeEmpresa}
-                                            onChange={handleDadosChange}
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
-                                        />
+                                        <label className="text-xs font-medium text-gray-500">Razão Social <span className="text-red-500">*</span></label>
+                                        <input name="nomeEmpresa" value={dadosCliente.nomeEmpresa} onChange={handleDadosChange}
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
                                     </div>
                                     <div className="flex flex-col gap-1">
                                         <label className="text-xs font-medium text-gray-500">Nome Fantasia</label>
-                                        <input
-                                            name="nomeFantasia"
-                                            value={dadosCliente.nomeFantasia}
-                                            onChange={handleDadosChange}
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
-                                        />
+                                        <input name="nomeFantasia" value={dadosCliente.nomeFantasia} onChange={handleDadosChange}
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
                                     </div>
                                     <div className="flex flex-col gap-1">
                                         <label className="text-xs font-medium text-gray-500">CNPJ</label>
-                                        <input
-                                            name="cnpj"
-                                            value={dadosCliente.cnpj}
-                                            onChange={handleDadosChange}
+                                        <input name="cnpj" value={dadosCliente.cnpj} onChange={handleDadosChange}
                                             placeholder="00.000.000/0000-00"
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
-                                        />
+                                            className={`border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 transition
+                                                ${aviso.includes('CNPJ') ? 'border-yellow-400 focus:border-yellow-400 focus:ring-yellow-200' : 'border-gray-200 focus:border-[#2D3AC2] focus:ring-[#2D3AC2]/20'}`} />
                                     </div>
                                     <div className="flex flex-col gap-1">
-                                        <label className="text-xs font-medium text-gray-500">CPF (se pessoa física)</label>
-                                        <input
-                                            name="cpf"
-                                            value={dadosCliente.cpf}
-                                            onChange={handleDadosChange}
+                                        <label className="text-xs font-medium text-gray-500">CPF (pessoa física)</label>
+                                        <input name="cpf" value={dadosCliente.cpf} onChange={handleDadosChange}
                                             placeholder="000.000.000-00"
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
-                                        />
+                                            className={`border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 transition
+                                                ${aviso.includes('CPF') ? 'border-yellow-400 focus:border-yellow-400 focus:ring-yellow-200' : 'border-gray-200 focus:border-[#2D3AC2] focus:ring-[#2D3AC2]/20'}`} />
                                     </div>
                                     <div className="flex flex-col gap-1">
-                                        <label className="text-xs font-medium text-gray-500">E-mail</label>
-                                        <input
-                                            name="email"
-                                            type="email"
-                                            value={dadosCliente.email}
-                                            onChange={handleDadosChange}
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
-                                        />
+                                        <label className="text-xs font-medium text-gray-500">Responsável</label>
+                                        <input name="responsavel" value={dadosCliente.responsavel} onChange={handleDadosChange}
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
                                     </div>
                                     <div className="flex flex-col gap-1">
                                         <label className="text-xs font-medium text-gray-500">Telefone</label>
-                                        <input
-                                            name="telefone"
-                                            value={dadosCliente.telefone}
-                                            onChange={handleDadosChange}
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
-                                        />
+                                        <input name="telefone" value={dadosCliente.telefone} onChange={handleDadosChange}
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
                                     </div>
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-xs font-medium text-gray-500">Nome do Responsável</label>
-                                        <input
-                                            name="responsavel"
-                                            value={dadosCliente.responsavel}
-                                            onChange={handleDadosChange}
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
-                                        />
+                                    <div className="col-span-2 flex flex-col gap-1">
+                                        <label className="text-xs font-medium text-gray-500">E-mail</label>
+                                        <input name="email" type="email" value={dadosCliente.email} onChange={handleDadosChange}
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
                                     </div>
                                     <div className="flex flex-col gap-1">
                                         <label className="text-xs font-medium text-gray-500">CEP</label>
-                                        <input
-                                            name="cep"
-                                            value={dadosCliente.cep}
-                                            onChange={handleDadosChange}
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
-                                        />
+                                        <input name="cep" value={dadosCliente.cep} onChange={handleDadosChange}
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
                                     </div>
                                     <div className="col-span-2 flex flex-col gap-1">
                                         <label className="text-xs font-medium text-gray-500">Endereço</label>
-                                        <input
-                                            name="endereco"
-                                            value={dadosCliente.endereco}
-                                            onChange={handleDadosChange}
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
-                                        />
+                                        <input name="endereco" value={dadosCliente.endereco} onChange={handleDadosChange}
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
                                     </div>
                                     <div className="flex flex-col gap-1">
                                         <label className="text-xs font-medium text-gray-500">Cidade</label>
-                                        <input
-                                            name="cidade"
-                                            value={dadosCliente.cidade}
-                                            onChange={handleDadosChange}
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
-                                        />
+                                        <input name="cidade" value={dadosCliente.cidade} onChange={handleDadosChange}
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
                                     </div>
                                     <div className="flex flex-col gap-1">
                                         <label className="text-xs font-medium text-gray-500">Estado</label>
-                                        <input
-                                            name="estado"
-                                            value={dadosCliente.estado}
-                                            onChange={handleDadosChange}
+                                        <input name="estado" value={dadosCliente.estado} onChange={handleDadosChange}
                                             placeholder="SP"
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
-                                        />
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
                                     </div>
                                 </div>
                             </div>
@@ -350,56 +475,34 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                                 <p className="text-sm font-semibold text-gray-700 mb-3">Condições acordadas</p>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="flex flex-col gap-1">
-                                        <label className="text-xs font-medium text-gray-500">
-                                            Forma de pagamento <span className="text-red-500">*</span>
-                                        </label>
-                                        <select
-                                            name="formaPagamento"
-                                            value={condicoes.formaPagamento}
-                                            onChange={handleCondicoesChange}
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 bg-white transition"
-                                        >
+                                        <label className="text-xs font-medium text-gray-500">Forma de pagamento <span className="text-red-500">*</span></label>
+                                        <select name="formaPagamento" value={condicoes.formaPagamento} onChange={handleCondicoesChange}
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 bg-white transition">
                                             <option value="">Selecione</option>
                                             <option value="boleto">Boleto</option>
                                             <option value="pix">PIX</option>
                                         </select>
                                     </div>
                                     <div className="flex flex-col gap-1">
-                                        <label className="text-xs font-medium text-gray-500">
-                                            Tipo de documento <span className="text-red-500">*</span>
-                                        </label>
-                                        <select
-                                            name="tipoDocumento"
-                                            value={condicoes.tipoDocumento}
-                                            onChange={handleCondicoesChange}
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 bg-white transition"
-                                        >
+                                        <label className="text-xs font-medium text-gray-500">Tipo de documento <span className="text-red-500">*</span></label>
+                                        <select name="tipoDocumento" value={condicoes.tipoDocumento} onChange={handleCondicoesChange}
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 bg-white transition">
                                             <option value="">Selecione</option>
                                             <option value="nota_fiscal">Nota Fiscal</option>
                                             <option value="recibo_locacao">Recibo de Locação</option>
                                         </select>
                                     </div>
                                     <div className="col-span-2 flex flex-col gap-1">
-                                        <label className="text-xs font-medium text-gray-500">
-                                            Condições de pagamento
-                                        </label>
-                                        <input
-                                            name="condicoesPagamento"
-                                            value={condicoes.condicoesPagamento}
-                                            onChange={handleCondicoesChange}
+                                        <label className="text-xs font-medium text-gray-500">Condições de pagamento</label>
+                                        <input name="condicoesPagamento" value={condicoes.condicoesPagamento} onChange={handleCondicoesChange}
                                             placeholder="Ex: 30/60/90 dias, entrada + parcelas..."
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
-                                        />
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
                                     </div>
                                     <div className="col-span-2 flex flex-col gap-1">
                                         <label className="text-xs font-medium text-gray-500">Observações</label>
-                                        <textarea
-                                            name="observacoes"
-                                            value={condicoes.observacoes}
-                                            onChange={handleCondicoesChange}
+                                        <textarea name="observacoes" value={condicoes.observacoes} onChange={handleCondicoesChange}
                                             rows={2}
-                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 resize-none transition"
-                                        />
+                                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 resize-none transition" />
                                     </div>
                                 </div>
                             </div>
@@ -416,22 +519,31 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                 {/* Rodapé */}
                 <div className="px-6 py-4 border-t border-gray-100 flex justify-between">
                     <button
-                        onClick={etapa === 2 ? () => setEtapa(1) : onFechar}
+                        onClick={() => {
+                            setErro('')
+                            if (etapa === 3) { setEtapa(2); return }
+                            if (etapa === 2) { setEtapa(1); return }
+                            onFechar()
+                        }}
                         className="px-4 py-2 text-sm text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
                     >
-                        {etapa === 2 ? '← Voltar' : 'Cancelar'}
+                        {etapa === 1 ? 'Cancelar' : '← Voltar'}
                     </button>
                     <button
-                        onClick={etapa === 1 ? avancar : handleSalvar}
-                        disabled={!resultado || carregando}
+                        onClick={() => {
+                            setErro('')
+                            if (etapa === 1) avancarEtapa1()
+                            else if (etapa === 2) avancarEtapa2()
+                            else handleSalvar()
+                        }}
+                        disabled={!resultado || carregando || (etapa === 1 && resultado === 'aprovado' && buscandoClientes)}
                         className={`px-5 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50
                             ${resultado === 'reprovado' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
                     >
                         {carregando ? 'Salvando...' :
-                            etapa === 1
-                                ? resultado === 'reprovado' ? 'Confirmar reprovação' : 'Próximo →'
-                                : 'Confirmar aprovação'
-                        }
+                         etapa === 1 ? (resultado === 'reprovado' ? 'Confirmar reprovação' : 'Próximo →') :
+                         etapa === 2 ? (modoCliente === 'novo' ? 'Preencher dados →' : 'Selecionar →') :
+                         'Confirmar aprovação'}
                     </button>
                 </div>
             </div>

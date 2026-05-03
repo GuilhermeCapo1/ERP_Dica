@@ -18,6 +18,9 @@ export default function Sidebar({ usuario }) {
         navigate('/login')
     }
 
+    // Filtra rotas que não devem aparecer no menu (rotas ocultas como detalhes de projeto)
+    const rotasMenu = ROTAS.filter(r => !r.menuOculto)
+
     return (
         <aside className="w-64 bg-white border-r flex flex-col shrink-0">
 
@@ -29,8 +32,8 @@ export default function Sidebar({ usuario }) {
 
             {/* Navegação */}
             <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5">
-                {ROTAS.map(({ path, label, icone: Icone }) => {
-                    const ativo = localizacao.pathname === path
+                {rotasMenu.map(({ path, label, icone: Icone }) => {
+                    const ativo    = localizacao.pathname === path
                     const liberado = temAcesso(usuario?.cargo, path)
 
                     // ── Item BLOQUEADO ────────────────────────────────────
