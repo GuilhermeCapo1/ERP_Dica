@@ -520,118 +520,193 @@ async function gerarPDFOrcamento(orcamento, projeto, memorial) {
     doc.setFillColor('#FFFFFF')
     doc.rect(0, 0, LARGURA, ALTURA, 'F')
 
+    // Margens e largura útil
+    const MARGEM  = 12
+    const LARGURA_UTIL = LARGURA - MARGEM * 2  // 297 - 24 = 273mm
+
     // Cabeçalho branco com logo
-    if (logoBase64) doc.addImage(logoBase64, 'PNG', LARGURA - 55, 8, 45, 45)
+    if (logoBase64) doc.addImage(logoBase64, 'PNG', LARGURA - MARGEM - 45, 6, 40, 40)
 
     doc.setFontSize(10)
     doc.setTextColor('#222222')
     doc.setFont('helvetica', 'bold')
-    doc.text(`Evento: ${projeto.feira || projeto.nome}`, 15, 18)
-    doc.text(`Datas: ${projeto.datas || '—'}`, 15, 25)
-    doc.text(`Local: ${projeto.local || '—'}`, 15, 32)
+    doc.text(`Evento: ${projeto.feira || projeto.nome}`, MARGEM, 16)
+    doc.text(`Datas: ${projeto.datas || '—'}`, MARGEM, 23)
+    doc.text(`Local: ${projeto.local || '—'}`, MARGEM, 30)
 
     doc.setFontSize(13)
     doc.setFont('helvetica', 'bold')
-    doc.text(`Proposta Comercial para ${projeto.cliente}`, 15, 50)
+    doc.text(`Proposta Comercial para ${projeto.cliente}`, MARGEM, 48)
+
+    // ── Definição das colunas ─────────────────────────────────────────────
+    // Total da linha = 273mm
+    // desc=145 | quant=30 | valor=45 | total=53 → soma=273
+    const COL = {
+        desc:  { x: MARGEM,       w: 145 },
+        quant: { x: MARGEM + 145, w: 30  },
+        valor: { x: MARGEM + 175, w: 45  },
+        total: { x: MARGEM + 220, w: 53  },
+    }
 
     // Cabeçalho da tabela
-    const colX = { desc: 15, quant: 155, valor: 195, total: 240 }
-    const colW = { desc: 138, quant: 38, valor: 43, total: 50 }
-
+    const yHeader = 53
     doc.setFillColor('#222222')
-    doc.rect(colX.desc, 55, LARGURA - 30, 8, 'F')
-    doc.setFontSize(8)
+    doc.rect(MARGEM, yHeader, LARGURA_UTIL, 8, 'F')
+    doc.setFontSize(7.5)
     doc.setTextColor('#FFFFFF')
     doc.setFont('helvetica', 'bold')
-    doc.text('DESCRIÇÃO', colX.desc + 2, 60.5)
-    doc.text('QUANT.', colX.quant + colW.quant / 2, 60.5, { align: 'center' })
-    doc.text('VALOR', colX.valor + colW.valor / 2, 60.5, { align: 'center' })
-    doc.text('VALOR TOTAL', colX.total + colW.total / 2, 60.5, { align: 'center' })
+    doc.text('DESCRIÇÃO',   COL.desc.x  + 2,                      yHeader + 5.5)
+    doc.text('QUANT.',      COL.quant.x + COL.quant.w / 2,        yHeader + 5.5, { align: 'center' })
+    doc.text('VALOR UNIT.', COL.valor.x + COL.valor.w - 2,        yHeader + 5.5, { align: 'right' })
+    doc.text('VALOR TOTAL', COL.total.x + COL.total.w - 2,        yHeader + 5.5, { align: 'right' })
 
     const itens = JSON.parse(orcamento.itens || '[]')
     const { subtotal, totalNF, imposto, recibo } = calcularTotais(
         itens.map(i => ({ ...i, id: 0 }))
     )
 
+    // ── Helper: nova página da proposta ──────────────────────────────────
+    let paginaProposta = numeroPagina
+    function novaSecao() {
+        rodape(paginaProposta++)
+        doc.addPage()
+        doc.setFillColor('#FFFFFF')
+        doc.rect(0, 0, LARGURA, ALTURA, 'F')
+        // Recria cabeçalho da tabela na nova página
+        doc.setFillColor('#222222')
+        doc.rect(MARGEM, 10, LARGURA_UTIL, 8, 'F')
+        doc.setFontSize(7.5)
+        doc.setTextColor('#FFFFFF')
+        doc.setFont('helvetica', 'bold')
+        doc.text('DESCRIÇÃO',   COL.desc.x  + 2,               15.5)
+        doc.text('QUANT.',      COL.quant.x + COL.quant.w / 2, 15.5, { align: 'center' })
+        doc.text('VALOR UNIT.', COL.valor.x + COL.valor.w - 2, 15.5, { align: 'right' })
+        doc.text('VALOR TOTAL', COL.total.x + COL.total.w - 2, 15.5, { align: 'right' })
+        return 22 // y inicial após o cabeçalho
+    }
+
     // Subtítulo do grupo
-    let yTabela = 68
+    let yTabela = yHeader + 12
     doc.setFillColor('#F5F0E8')
-    doc.rect(colX.desc, yTabela - 4, LARGURA - 30, 7, 'F')
+    doc.rect(MARGEM, yTabela - 4, LARGURA_UTIL, 7, 'F')
     doc.setFontSize(8)
     doc.setTextColor('#222222')
     doc.setFont('helvetica', 'bold')
-    doc.text(`Stand ${projeto.metragem || ''}m²`, colX.desc + 2, yTabela)
-    yTabela += 6
+    doc.text(`Stand ${projeto.metragem || ''}m²`, COL.desc.x + 2, yTabela)
+    yTabela += 7
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8)
-    doc.text('01. Construção', colX.desc + 2, yTabela)
-    yTabela += 6
+    doc.text('01. Construção', COL.desc.x + 2, yTabela)
+    yTabela += 7
 
-    // Itens
+    // ── Itens com quebra de página automática ─────────────────────────────
+    // Reserva 40mm no final para os totais
+    const Y_LIMITE = ALTURA - 45
+
     itens.forEach((item, i) => {
+        // Calcula quantas linhas a descrição vai ocupar
+        doc.setFontSize(7.5)
+        const linhasDesc = doc.splitTextToSize(item.descricao || '', COL.desc.w - 4)
+        const alturaLinha = linhasDesc.length * 5 + 3
+
+        // Quebra de página se não couber
+        if (yTabela + alturaLinha > Y_LIMITE) {
+            yTabela = novaSecao()
+        }
+
         const totalItem = (parseFloat(item.quantidade) || 0) * (parseFloat(item.valorUnitario) || 0)
         const bg = i % 2 === 0 ? '#FFFFFF' : '#F9F9F9'
         doc.setFillColor(bg)
-        doc.rect(colX.desc, yTabela - 4, LARGURA - 30, 7, 'F')
+        doc.rect(MARGEM, yTabela - 4, LARGURA_UTIL, alturaLinha, 'F')
+
         doc.setFontSize(7.5)
         doc.setTextColor('#333333')
         doc.setFont('helvetica', 'normal')
 
-        const linhasDesc = doc.splitTextToSize(item.descricao || '', colW.desc - 4)
-        doc.text(linhasDesc[0], colX.desc + 2, yTabela)
-        doc.text(String(item.quantidade || ''), colX.quant + colW.quant / 2, yTabela, { align: 'center' })
-        doc.text(formatarMoeda(parseFloat(item.valorUnitario) || 0), colX.valor + colW.valor - 2, yTabela, { align: 'right' })
-        doc.text(formatarMoeda(totalItem), colX.total + colW.total - 2, yTabela, { align: 'right' })
-        yTabela += 7
+        // Descrição pode ter múltiplas linhas
+        linhasDesc.forEach((linha, li) => {
+            doc.text(linha, COL.desc.x + 2, yTabela + li * 5)
+        })
+
+        // Quantidade, valor e total sempre alinhados com a primeira linha
+        doc.text(
+            String(item.quantidade || ''),
+            COL.quant.x + COL.quant.w / 2,
+            yTabela,
+            { align: 'center' }
+        )
+        doc.text(
+            formatarMoeda(parseFloat(item.valorUnitario) || 0),
+            COL.valor.x + COL.valor.w - 2,
+            yTabela,
+            { align: 'right' }
+        )
+        doc.text(
+            formatarMoeda(totalItem),
+            COL.total.x + COL.total.w - 2,
+            yTabela,
+            { align: 'right' }
+        )
+
+        yTabela += alturaLinha
     })
 
-    // Totais
+    // ── Totais — quebra de página se não couber ───────────────────────────
+    // Os totais precisam de ~40mm (4 linhas de 9mm + recibo + espaços)
+    if (yTabela + 40 > ALTURA - 15) {
+        yTabela = novaSecao()
+    }
+
     yTabela += 3
+    // Bloco de totais — altura fixa de 24mm (3 linhas de 8mm cada)
     doc.setFillColor('#222222')
-    doc.rect(colX.desc, yTabela - 4, LARGURA - 30, 24, 'F')
+    doc.rect(MARGEM, yTabela - 4, LARGURA_UTIL, 26, 'F')
     doc.setFontSize(8)
     doc.setTextColor('#FFFFFF')
     doc.setFont('helvetica', 'bold')
 
-    doc.text('SUB-TOTAL', colX.total - 5, yTabela, { align: 'right' })
-    doc.text(formatarMoeda(subtotal), colX.total + colW.total - 2, yTabela, { align: 'right' })
-    yTabela += 7
-    doc.text('IMPOSTOS SOBRE NOTA FISCAL', colX.total - 5, yTabela, { align: 'right' })
-    doc.text(formatarMoeda(imposto), colX.total + colW.total - 2, yTabela, { align: 'right' })
-    yTabela += 7
-    doc.text('TOTAL', colX.total - 5, yTabela, { align: 'right' })
-    doc.text(formatarMoeda(totalNF), colX.total + colW.total - 2, yTabela, { align: 'right' })
+    // Alinha labels à esquerda do bloco de total e valores à direita
+    const xLabelTotal = COL.total.x - 3
+    const xValorTotal = COL.total.x + COL.total.w - 2
 
-    yTabela += 10
-    doc.setFillColor('#222222')
-    doc.rect(colX.desc, yTabela - 4, LARGURA - 30, 9, 'F')
-    doc.setFontSize(8)
-    doc.setTextColor('#FFFFFF')
-    doc.setFont('helvetica', 'bold')
-    doc.text('OPÇÃO COM RECIBO DE LOCAÇÃO', colX.total - 5, yTabela, { align: 'right' })
-    doc.text(formatarMoeda(recibo), colX.total + colW.total - 2, yTabela, { align: 'right' })
+    doc.text('SUB-TOTAL',                  xLabelTotal, yTabela,      { align: 'right' })
+    doc.text(formatarMoeda(subtotal),      xValorTotal, yTabela,      { align: 'right' })
+    yTabela += 8
+    doc.text('IMPOSTOS SOBRE NOTA FISCAL', xLabelTotal, yTabela,      { align: 'right' })
+    doc.text(formatarMoeda(imposto),       xValorTotal, yTabela,      { align: 'right' })
+    yTabela += 8
+    doc.text('TOTAL',                      xLabelTotal, yTabela,      { align: 'right' })
+    doc.text(formatarMoeda(totalNF),       xValorTotal, yTabela,      { align: 'right' })
 
     yTabela += 12
+    doc.setFillColor('#222222')
+    doc.rect(MARGEM, yTabela - 4, LARGURA_UTIL, 9, 'F')
+    doc.setFontSize(8)
+    doc.setTextColor('#FFFFFF')
+    doc.setFont('helvetica', 'bold')
+    doc.text('OPÇÃO COM RECIBO DE LOCAÇÃO', xLabelTotal, yTabela, { align: 'right' })
+    doc.text(formatarMoeda(recibo),         xValorTotal, yTabela, { align: 'right' })
+
+    yTabela += 14
     doc.setTextColor('#222222')
     doc.setFontSize(8.5)
     doc.setFont('helvetica', 'bold')
-    doc.text(`Forma de pagamento: ${orcamento.formaPagamento || 'a combinar'}`, 15, yTabela)
+    doc.text(`Forma de pagamento: ${orcamento.formaPagamento || 'a combinar'}`, MARGEM, yTabela)
     yTabela += 7
-    doc.text(`Vencimentos: ${orcamento.vencimentos || 'a combinar'}`, 15, yTabela)
+    doc.text(`Vencimentos: ${orcamento.vencimentos || 'a combinar'}`, MARGEM, yTabela)
     yTabela += 8
     const dataOrc = new Date(orcamento.dataOrcamento || Date.now()).toLocaleDateString('pt-BR')
     doc.setFont('helvetica', 'normal')
-    doc.text(`${orcamento.cidade || 'São Paulo'}, ${dataOrc}`, 15, yTabela)
+    doc.text(`${orcamento.cidade || 'São Paulo'}, ${dataOrc}`, MARGEM, yTabela)
 
-    if (logoBase64) doc.addImage(logoBase64, 'PNG', LARGURA - 45, ALTURA - 40, 30, 30)
+    if (logoBase64) doc.addImage(logoBase64, 'PNG', LARGURA - MARGEM - 32, ALTURA - 42, 28, 28)
 
-    // Rodapé da proposta
+    // Rodapé dourado na proposta
     doc.setFillColor(DOURADO)
     doc.rect(0, ALTURA - 12, LARGURA, 12, 'F')
     doc.setFontSize(7)
     doc.setTextColor('#000000')
-    doc.text(`Data do evento: ${projeto.datas || '—'} · Local: ${projeto.local || '—'}`, 10, ALTURA - 4)
+    doc.text(`Data do evento: ${projeto.datas || '—'} · Local: ${projeto.local || '—'}`, MARGEM, ALTURA - 4)
 
     const nomeArquivo = `Proposta_${projeto.cliente}_V${orcamento.versao}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`
     doc.save(nomeArquivo)
