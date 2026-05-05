@@ -18,20 +18,21 @@ export default function Cadastro() {
             setError('Preencha todos os campos obrigatórios')
             return
         }
+        if (form.password.length < 6) {
+            setError('A senha deve ter pelo menos 6 caracteres')
+            return
+        }
+        if (/^\d+$/.test(form.password)) {
+            setError('A senha não pode conter apenas números')
+            return
+        }
+
         setLoading(true)
         setError('')
         try {
             const res = await cadastro(form.name, form.email, form.password, form.cargo)
             if (res.user) {
                 navigate('/login')
-            }
-            if (form.password.length < 6) {
-                setError('A senha deve ter pelo menos 6 caracteres')
-                return
-            }
-            if (/^\d+$/.test(form.password)) {
-                setError('A senha não pode conter apenas números')
-                return
             } else {
                 setError(res.message || 'Erro ao cadastrar')
             }
@@ -82,6 +83,7 @@ export default function Cadastro() {
                             <option value="projetista">Projetista</option>
                             <option value="gerente">Gerente</option>
                             <option value="diretor">Diretor</option>
+                            <option value="financeiro">Financeiro</option>
                         </select>
                     </div>
 

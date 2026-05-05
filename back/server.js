@@ -12,8 +12,13 @@ import path from 'path';
 import fs from 'fs';
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-const execFileAsync = promisify(execFile)
+import { fileURLToPath } from 'url'
+import { dirname, join, resolve } from 'path'
+import { tmpdir } from 'os'
 
+const execFileAsync = promisify(execFile)
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 const prisma = new PrismaClient();
 const app = express();
 const isDev = process.env.NODE_ENV !== 'production';
@@ -297,9 +302,9 @@ app.get('/projetos/:id/detalhes', authMiddleware, async (req, res, next) => {
         const projeto = await prisma.projeto.findUnique({
             where: { id: req.params.id },
             include: {
-                responsavel:   { select: { id: true, name: true, cargo: true } },
-                projetista:    { select: { id: true, name: true } },
-                clienteRef:    true,
+                responsavel: { select: { id: true, name: true, cargo: true } },
+                projetista: { select: { id: true, name: true } },
+                clienteRef: true,
                 imagensProjeto: { orderBy: { ordem: 'asc' } },
                 memoriais: {
                     include: {
@@ -312,7 +317,7 @@ app.get('/projetos/:id/detalhes', authMiddleware, async (req, res, next) => {
                 },
                 orcamentos: {
                     include: {
-                        memorial:  { select: { versao: true } },
+                        memorial: { select: { versao: true } },
                         criadoPor: { select: { name: true } }
                     },
                     orderBy: { versao: 'desc' }
@@ -510,9 +515,9 @@ app.delete('/projetos/:id', authMiddleware, async (req, res, next) => {
 });
 
 app.post('/projetos/:id/arquivos', authMiddleware, upload.fields([
-    { name: 'manual',   maxCount: 1 },
-    { name: 'mapa',     maxCount: 1 },
-    { name: 'logos',    maxCount: 5 },
+    { name: 'manual', maxCount: 1 },
+    { name: 'mapa', maxCount: 1 },
+    { name: 'logos', maxCount: 5 },
     { name: 'briefing', maxCount: 1 },
 ]), async (req, res, next) => {
     try {
@@ -1029,63 +1034,137 @@ app.use((err, req, res, next) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
-// CONTRATO
-// Adicionar após os imports, junto com os outros imports do topo:
-//   import { execFile } from 'child_process';
-//   import { promisify } from 'util';
-//   const execFileAsync = promisify(execFile);
-// ══════════════════════════════════════════════════════════════════════════
+// CONTRATOS
 
-// GET /projetos/:id/contrato — gera e faz download do contrato .docx
-app.get('/projetos/:id/contrato', authMiddleware, async (req, res) => {
+// ── Lista contratos de um projeto ─────────────────────────────────────────
+app.get('/projetos/:id/contratos', authMiddleware, async (req, res) => {
+    const contratos = await prisma.contrato.findMany({
+        where: { projetoId: req.params.id },
+        include: { criadoPor: { select: { name: true } } },
+        orderBy: { criadoEm: 'desc' },
+    });
+    res.json(contratos);
+});
+
+// ── Lista todos os contratos (com filtro por cargo) ───────────────────────
+app.get('/contratos', authMiddleware, async (req, res) => {
+    const usuario = await prisma.user.findUnique({ where: { id: req.userId } });
+    const cargo = usuario?.cargo?.toLowerCase();
+
+    // Vendedor só vê contratos dos projetos em que é responsável
+    const where = ['gerente', 'diretor', 'financeiro'].includes(cargo)
+        ? {}
+        : { projeto: { responsavelId: req.userId } };
+
+    const contratos = await prisma.contrato.findMany({
+        where,
+        include: {
+            projeto: {
+                select: {
+                    id: true, nome: true, cliente: true, feira: true,
+                    datas: true, local: true, metragem: true,
+                    formaPagamento: true, tipoDocumento: true,
+                    condicoesPagamento: true, observacoesAprovacao: true,
+                    status: true,
+                    clienteRef: true,
+                    memoriais: {
+                        orderBy: { versao: 'desc' },
+                        take: 1,
+                    },
+                    orcamentos: {
+                        orderBy: { versao: 'desc' },
+                        take: 1,
+                    },
+                }
+            },
+            criadoPor: { select: { name: true } },
+        },
+        orderBy: { criadoEm: 'desc' },
+    });
+
+    res.json(contratos);
+});
+
+// ── Cria registro de contrato para um projeto aprovado ────────────────────
+app.post('/projetos/:id/contratos', authMiddleware, async (req, res) => {
+    const { numero } = req.body;
+
+    const projeto = await prisma.projeto.findUnique({ where: { id: req.params.id } });
+    if (!projeto) return res.status(404).json({ message: 'Projeto não encontrado' });
+    if (projeto.status !== 'Aprovado') return res.status(400).json({ message: 'Contrato só pode ser criado para projetos aprovados' });
+
     try {
-        // Busca projeto com todas as relações necessárias
-        const projeto = await prisma.projeto.findUnique({
+        const contrato = await prisma.contrato.create({
+            data: {
+                projetoId: req.params.id,
+                numero: numero || null,
+                criadoPorId: req.userId,
+            }
+        });
+        res.status(201).json(contrato);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Erro ao criar contrato' });
+    }
+});
+
+// ── Atualiza número do contrato ───────────────────────────────────────────
+app.patch('/contratos/:id', authMiddleware, async (req, res) => {
+    const { numero } = req.body;
+    try {
+        const contrato = await prisma.contrato.update({
+            where: { id: req.params.id },
+            data: { numero },
+        });
+        res.json(contrato);
+    } catch {
+        res.status(500).json({ message: 'Erro ao atualizar contrato' });
+    }
+});
+
+// ── Marca contrato como assinado ──────────────────────────────────────────
+app.patch('/contratos/:id/assinar', authMiddleware, async (req, res) => {
+    try {
+        const contrato = await prisma.contrato.update({
+            where: { id: req.params.id },
+            data: { assinado: true, assinadoEm: new Date() },
+        });
+        res.json(contrato);
+    } catch {
+        res.status(500).json({ message: 'Erro ao marcar contrato como assinado' });
+    }
+});
+
+// ── Gera e faz download do .docx ──────────────────────────────────────────
+app.get('/contratos/:id/download', authMiddleware, async (req, res) => {
+    try {
+        const contrato = await prisma.contrato.findUnique({
             where: { id: req.params.id },
             include: {
-                clienteRef: true,
-                memoriais: {
-                    orderBy: { versao: 'desc' },
-                    take: 1,                          // pega o memorial mais recente
-                    include: { orcamento: true }
-                },
-                orcamentos: {
-                    orderBy: { versao: 'desc' },
-                    take: 1                           // pega o orçamento mais recente
-                },
+                projeto: {
+                    include: {
+                        clienteRef: true,
+                        memoriais: { orderBy: { versao: 'desc' }, take: 1 },
+                        orcamentos: { orderBy: { versao: 'desc' }, take: 1 },
+                    }
+                }
             }
         });
 
-        if (!projeto) return res.status(404).json({ message: 'Projeto não encontrado' });
-        if (projeto.status !== 'Aprovado') return res.status(400).json({ message: 'Contrato só pode ser gerado para projetos aprovados' });
+        if (!contrato) return res.status(404).json({ message: 'Contrato não encontrado' });
 
+        const projeto = contrato.projeto;
         const cliente = projeto.clienteRef;
         const memorial = projeto.memoriais?.[0] || null;
         const orcamento = projeto.orcamentos?.[0] || null;
 
-        // Monta o número do contrato (ex: 114/2026)
-        // Você pode criar uma sequência real no banco futuramente —
-        // por enquanto usa o ano + um hash do ID
-        const ano = new Date().getFullYear();
-        const seq = parseInt(projeto.id.slice(-4), 16) % 1000;
-        const numeroContrato = `${String(seq).padStart(3, '0')}/${ano}`;
-
-        // Calcula valor total baseado no orçamento
-        const itens = orcamento?.itens ? JSON.parse(orcamento.itens) : [];
-        const subtotal = itens.reduce((acc, i) => acc + (i.quantidade || 0) * (i.valorUnitario || 0), 0);
-        const totalNF = subtotal / 90 * 100;
-        const recibo = subtotal;
-        const valorFinal = projeto.tipoDocumento === 'nota_fiscal' ? totalNF : recibo;
-
         const dados = {
-            // Dados do projeto
             nome: projeto.nome,
             feira: projeto.feira,
             datas: projeto.datas,
             local: projeto.local,
             metragem: projeto.metragem,
 
-            // Dados do cliente (vindos do clienteRef ou dos campos diretos salvos na aprovação)
             nomeEmpresa: cliente?.nomeEmpresa || projeto.cliente,
             nomeFantasia: cliente?.nomeFantasia || null,
             cnpj: cliente?.cnpj || null,
@@ -1096,16 +1175,13 @@ app.get('/projetos/:id/contrato', authMiddleware, async (req, res) => {
             cep: cliente?.cep || null,
             responsavel: cliente?.responsavel || null,
 
-            // Condições comerciais (salvas na aprovação)
             formaPagamento: projeto.formaPagamento,
             tipoDocumento: projeto.tipoDocumento,
             condicoesPagamento: projeto.condicoesPagamento,
             observacoesAprovacao: projeto.observacoesAprovacao,
 
-            // Número do contrato
-            numeroContrato,
+            numeroContrato: contrato.numero || '___/____',
 
-            // Memorial descritivo (versão mais recente)
             memorial: memorial ? {
                 camposAtivos: memorial.camposAtivos,
                 piso: memorial.piso,
@@ -1116,12 +1192,10 @@ app.get('/projetos/:id/contrato', authMiddleware, async (req, res) => {
                 eletrica: memorial.eletrica,
             } : null,
 
-            // Orçamento
             orcamento: orcamento ? {
                 itens: orcamento.itens,
                 formaPagamento: orcamento.formaPagamento,
                 vencimentos: orcamento.vencimentos,
-                valorTotal: valorFinal,
             } : null,
 
             dataGeracao: new Date().toLocaleDateString('pt-BR', {
@@ -1129,24 +1203,35 @@ app.get('/projetos/:id/contrato', authMiddleware, async (req, res) => {
             }),
         };
 
-        // Gera o arquivo .docx via script Node
-        const outputPath = `/tmp/contrato_${projeto.id}_${Date.now()}.docx`;
-        const scriptPath = new URL('./gerarContrato.js', import.meta.url).pathname;
+        // ── Paths compatíveis com Windows ──────────────────────────────
+        const scriptPath = join(__dirname, 'gerarContrato.js');
+        const outputPath = join(tmpdir(), `contrato_${contrato.id}_${Date.now()}.docx`);
 
         await execFileAsync('node', [scriptPath, outputPath, JSON.stringify(dados)]);
 
-        // Envia o arquivo para download e apaga depois
-        const nomeArquivo = `Contrato_${(projeto.cliente || 'cliente').replace(/[^a-zA-Z0-9]/g, '_')}_${ano}.docx`;
+        // ── Envia o arquivo e apaga depois ─────────────────────────────
+        const nomeArquivo = `Contrato_${(projeto.cliente || 'cliente').replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().getFullYear()}.docx`;
         res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.sendFile(outputPath, () => {
-            // Apaga o arquivo temporário após enviar
-            fs.unlink(outputPath, () => {});
+
+        res.sendFile(resolve(outputPath), (err) => {
+            fs.unlink(outputPath, () => { });
         });
 
     } catch (error) {
         console.error('Erro ao gerar contrato:', error);
         res.status(500).json({ message: 'Erro ao gerar contrato: ' + error.message });
+    }
+});
+
+
+// ── Deleta contrato ───────────────────────────────────────────────────────
+app.delete('/contratos/:id', authMiddleware, async (req, res) => {
+    try {
+        await prisma.contrato.delete({ where: { id: req.params.id } });
+        res.json({ message: 'Contrato deletado' });
+    } catch {
+        res.status(500).json({ message: 'Erro ao deletar contrato' });
     }
 });
 

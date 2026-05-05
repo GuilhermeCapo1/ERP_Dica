@@ -229,32 +229,61 @@ export async function deletarCliente(clienteId) {
     })
 }
 
-// ── Adicionar em api.js ────────────────────────────────────────────────────
+// ── Contratos — adicionar ao api.js ───────────────────────────────────────
 
-// Faz download do contrato .docx do projeto aprovado
-export async function baixarContrato(projetoId) {
-    const res = await fetch(`${API_URL}/projetos/${projetoId}/contrato`, {
+// Lista todos os contratos (filtrado pelo cargo no backend)
+export async function getContratos() {
+    return request(`${API_URL}/contratos`)
+}
+
+// Cria registro de contrato para um projeto aprovado
+export async function criarContrato(projetoId, numero) {
+    return request(`${API_URL}/projetos/${projetoId}/contratos`, {
+        method: 'POST',
+        body: JSON.stringify({ numero }),
+    })
+}
+
+// Atualiza o número do contrato
+export async function atualizarNumeroContrato(contratoId, numero) {
+    return request(`${API_URL}/contratos/${contratoId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ numero }),
+    })
+}
+
+// Marca contrato como assinado
+export async function assinarContrato(contratoId) {
+    return request(`${API_URL}/contratos/${contratoId}/assinar`, {
+        method: 'PATCH',
+    })
+}
+
+// Deleta contrato
+export async function deletarContrato(contratoId) {
+    return request(`${API_URL}/contratos/${contratoId}`, {
+        method: 'DELETE',
+    })
+}
+
+// Faz download do .docx — abre dialog de download no navegador
+export async function baixarContrato(contratoId, nomeCliente) {
+    const res = await fetch(`${API_URL}/contratos/${contratoId}/download`, {
         credentials: 'include',
-    });
+    })
 
     if (!res.ok) {
-        const error = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
-        throw new Error(error.message || `HTTP ${res.status}`);
+        const error = await res.json().catch(() => ({ message: `HTTP ${res.status}` }))
+        throw new Error(error.message || `HTTP ${res.status}`)
     }
 
-    // Extrai o nome do arquivo do header Content-Disposition
-    const disposition = res.headers.get('Content-Disposition') || '';
-    const match = disposition.match(/filename="?([^"]+)"?/);
-    const nomeArquivo = match ? match[1] : 'contrato.docx';
-
-    // Força o download no navegador
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = nomeArquivo;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const blob = await res.blob()
+    const url  = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href  = url
+    link.download = `Contrato_${(nomeCliente || 'cliente').replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().getFullYear()}.docx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
 }

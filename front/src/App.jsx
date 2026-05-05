@@ -23,6 +23,10 @@ const ProjetoDetalhes = lazy(() => import('./pages/ProjetoDetalhes'))
 // Páginas ainda não implementadas — usam o placeholder EmConstrucao
 const EmConstrucao = lazy(() => import('./pages/EmConstrucao'))
 
+// Contratos
+const Contratos = lazy(() => import('./pages/Contratos'))
+
+
 function LoadingFallback() {
     return (
         <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -48,7 +52,8 @@ function App() {
                     <Route path="/projetos" element={<RotaProtegida><Projetos /></RotaProtegida>} />
                     <Route path="/memorial" element={<RotaProtegida><Memorial /></RotaProtegida>} />
                     <Route path="/orcamentos" element={<RotaProtegida><Orcamentos /></RotaProtegida>} />
-
+                    <Route path="/contratos" element={<RotaProtegida><Contratos /></RotaProtegida>} />
+                    
                     {/* Meus Briefings — projetista */}
                     <Route path="/meus-briefings" element={<RotaProtegida><MeusBriefings /></RotaProtegida>} />
                     <Route path="/producao" element={<RotaProtegida><EmConstrucao /></RotaProtegida>} />

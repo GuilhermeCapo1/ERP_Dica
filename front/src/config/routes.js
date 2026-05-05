@@ -7,6 +7,7 @@ import {
     Users,
     BarChart3,
     ClipboardList,
+    FileSignature,
 } from 'lucide-react'
 
 /**
@@ -19,13 +20,13 @@ export const ROTAS = [
         path: '/dashboard',
         label: 'Dashboard',
         icone: LayoutDashboard,
-        cargos: ['vendedor', 'gerente', 'projetista', 'diretor'],
+        cargos: ['vendedor', 'gerente', 'projetista', 'diretor', 'financeiro'],
     },
     {
         path: '/projetos',
         label: 'Projetos',
         icone: FolderKanban,
-        cargos: ['vendedor', 'gerente', 'projetista', 'diretor'],
+        cargos: ['vendedor', 'gerente', 'projetista', 'diretor', 'financeiro'],
     },
     {
         path: '/meus-briefings',
@@ -52,24 +53,22 @@ export const ROTAS = [
         cargos: ['gerente', 'diretor'],
     },
     {
+        path: '/contratos',
+        label: 'Contratos',
+        icone: FileSignature,
+        cargos: ['vendedor', 'gerente', 'diretor', 'financeiro'],
+    },
+    {
         path: '/clientes',
         label: 'Clientes',
         icone: Users,
-        cargos: ['vendedor', 'gerente', 'projetista', 'diretor'],
-    },
-    {
-        // Rota de detalhes do projeto — acessada via clientes, não aparece no menu
-        path: '/projetos/:projetoId/detalhes',
-        label: '',
-        icone: LayoutDashboard,
-        cargos: ['vendedor', 'gerente', 'projetista', 'diretor'],
-        menuOculto: true,
+        cargos: ['vendedor', 'gerente', 'projetista', 'diretor', 'financeiro'],
     },
     {
         path: '/relatorios',
         label: 'Relatórios',
         icone: BarChart3,
-        cargos: ['vendedor', 'gerente', 'projetista', 'diretor'],
+        cargos: ['vendedor', 'gerente', 'projetista', 'diretor', 'financeiro'],
     },
 ]
 
@@ -85,25 +84,11 @@ export function getRotasPorCargo(cargo) {
 }
 
 /**
- * Converte um path com parâmetros (:param) em regex para comparação.
- * Ex: '/projetos/:id/detalhes' → /^\/projetos\/[^/]+\/detalhes$/
- */
-function pathParaRegex(path) {
-    const escaped = path.replace(/:[^/]+/g, '[^/]+').replace(/\//g, '\\/')
-    return new RegExp(`^${escaped}$`)
-}
-
-/**
  * Verifica se um cargo tem acesso a uma rota.
- * Suporta rotas dinâmicas com parâmetros (ex: /projetos/:id/detalhes).
  */
 export function temAcesso(cargo, rota) {
     if (!cargo || !rota) return false
-    const cargoNormalizado = cargo.toLowerCase()
-    return ROTAS.some(r =>
-        pathParaRegex(r.path).test(rota) &&
-        r.cargos.map(c => c.toLowerCase()).includes(cargoNormalizado)
-    )
+    return getRotasPorCargo(cargo).includes(rota.toLowerCase())
 }
 
 /**
@@ -129,15 +114,13 @@ export const FUNCIONALIDADES = {
     deletarProjeto: ['gerente', 'diretor'],
 
     // Alterar status manualmente (select de status)
-    // Vendedor NÃO pode alterar status — o fluxo é automático
     alterarStatus: ['gerente', 'diretor'],
 
     // Voltar status para etapa anterior (com justificativa)
     voltarStatus: ['gerente', 'diretor'],
 
     // Registrar resultado do projeto (aprovado/reprovado)
-    // Apenas o vendedor responsável pelo projeto pode fazer isso
-    // (validação adicional feita no componente: p.responsavelId === usuario.id)
+    // Validação adicional feita no componente: p.responsavelId === usuario.id
     registrarResultado: ['vendedor'],
 
     // Ver briefings alocados (tela Meus Briefings)
@@ -148,6 +131,12 @@ export const FUNCIONALIDADES = {
 
     // Criar e editar orçamento
     gerenciarOrcamento: ['gerente', 'diretor'],
+
+    // Ver todos os contratos (vendedor só vê os seus)
+    verTodosContratos: ['gerente', 'diretor', 'financeiro'],
+
+    // Marcar contrato como assinado
+    assinarContrato: ['gerente', 'diretor', 'financeiro'],
 
     // Ver todos os clientes (vendedor só vê os seus)
     verTodosClientes: ['gerente', 'diretor'],
@@ -166,14 +155,15 @@ export function temPermissao(cargo, funcionalidade) {
 /**
  * Lista de todos os cargos válidos no sistema.
  */
-export const CARGOS_VALIDOS = ['vendedor', 'gerente', 'projetista', 'diretor']
+export const CARGOS_VALIDOS = ['vendedor', 'gerente', 'projetista', 'diretor', 'financeiro']
 
 /**
  * Labels formatadas para exibição dos cargos.
  */
 export const LABEL_CARGO = {
-    vendedor: 'Vendedor',
-    gerente: 'Gerente',
+    vendedor:   'Vendedor',
+    gerente:    'Gerente',
     projetista: 'Projetista',
-    diretor: 'Diretor',
+    diretor:    'Diretor',
+    financeiro: 'Financeiro',
 }

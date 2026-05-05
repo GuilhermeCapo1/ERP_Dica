@@ -17,6 +17,7 @@ model User {
   projetosProjetista  Projeto[]   @relation("Projetista")
   memoriais           Memorial[]
   orcamentos          Orcamento[]
+  contratos    Contrato[]
 }
 
 model Projeto {
@@ -41,7 +42,7 @@ model Projeto {
   imagensProjeto ImagemProjeto[]
   memoriais      Memorial[]
   orcamentos     Orcamento[]
-
+  contratos    Contrato[]
   resultadoFinal       String?
   clienteId            String?  @db.ObjectId
   clienteRef           Cliente? @relation(fields: [clienteId], references: [id])
@@ -121,4 +122,19 @@ model Cliente {
   criadoEm    DateTime  @default(now())
   atualizadoEm DateTime @updatedAt
   projetos     Projeto[]
+}
+
+model Contrato {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  projetoId       String    @db.ObjectId
+  projeto         Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+
+  numero          String?                       // ex: "114/2026" — editável antes de gerar
+  assinado        Boolean   @default(false)
+  assinadoEm      DateTime?
+
+  criadoEm        DateTime  @default(now())
+  atualizadoEm    DateTime  @updatedAt
+  criadoPorId     String?   @db.ObjectId
+  criadoPor       User?     @relation(fields: [criadoPorId], references: [id])
 }
