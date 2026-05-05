@@ -228,3 +228,33 @@ export async function deletarCliente(clienteId) {
         method: 'DELETE',
     })
 }
+
+// ── Adicionar em api.js ────────────────────────────────────────────────────
+
+// Faz download do contrato .docx do projeto aprovado
+export async function baixarContrato(projetoId) {
+    const res = await fetch(`${API_URL}/projetos/${projetoId}/contrato`, {
+        credentials: 'include',
+    });
+
+    if (!res.ok) {
+        const error = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+        throw new Error(error.message || `HTTP ${res.status}`);
+    }
+
+    // Extrai o nome do arquivo do header Content-Disposition
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const nomeArquivo = match ? match[1] : 'contrato.docx';
+
+    // Força o download no navegador
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nomeArquivo;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}

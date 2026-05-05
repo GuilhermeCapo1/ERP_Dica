@@ -10,6 +10,9 @@ import 'dotenv/config';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+const execFileAsync = promisify(execFile)
 
 const prisma = new PrismaClient();
 const app = express();
@@ -1023,6 +1026,128 @@ app.use((err, req, res, next) => {
     // Em dev: retorna detalhes para facilitar debug
     console.error(err);
     res.status(500).json({ message: err.message, stack: err.stack });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONTRATO
+// Adicionar após os imports, junto com os outros imports do topo:
+//   import { execFile } from 'child_process';
+//   import { promisify } from 'util';
+//   const execFileAsync = promisify(execFile);
+// ══════════════════════════════════════════════════════════════════════════
+
+// GET /projetos/:id/contrato — gera e faz download do contrato .docx
+app.get('/projetos/:id/contrato', authMiddleware, async (req, res) => {
+    try {
+        // Busca projeto com todas as relações necessárias
+        const projeto = await prisma.projeto.findUnique({
+            where: { id: req.params.id },
+            include: {
+                clienteRef: true,
+                memoriais: {
+                    orderBy: { versao: 'desc' },
+                    take: 1,                          // pega o memorial mais recente
+                    include: { orcamento: true }
+                },
+                orcamentos: {
+                    orderBy: { versao: 'desc' },
+                    take: 1                           // pega o orçamento mais recente
+                },
+            }
+        });
+
+        if (!projeto) return res.status(404).json({ message: 'Projeto não encontrado' });
+        if (projeto.status !== 'Aprovado') return res.status(400).json({ message: 'Contrato só pode ser gerado para projetos aprovados' });
+
+        const cliente = projeto.clienteRef;
+        const memorial = projeto.memoriais?.[0] || null;
+        const orcamento = projeto.orcamentos?.[0] || null;
+
+        // Monta o número do contrato (ex: 114/2026)
+        // Você pode criar uma sequência real no banco futuramente —
+        // por enquanto usa o ano + um hash do ID
+        const ano = new Date().getFullYear();
+        const seq = parseInt(projeto.id.slice(-4), 16) % 1000;
+        const numeroContrato = `${String(seq).padStart(3, '0')}/${ano}`;
+
+        // Calcula valor total baseado no orçamento
+        const itens = orcamento?.itens ? JSON.parse(orcamento.itens) : [];
+        const subtotal = itens.reduce((acc, i) => acc + (i.quantidade || 0) * (i.valorUnitario || 0), 0);
+        const totalNF = subtotal / 90 * 100;
+        const recibo = subtotal;
+        const valorFinal = projeto.tipoDocumento === 'nota_fiscal' ? totalNF : recibo;
+
+        const dados = {
+            // Dados do projeto
+            nome: projeto.nome,
+            feira: projeto.feira,
+            datas: projeto.datas,
+            local: projeto.local,
+            metragem: projeto.metragem,
+
+            // Dados do cliente (vindos do clienteRef ou dos campos diretos salvos na aprovação)
+            nomeEmpresa: cliente?.nomeEmpresa || projeto.cliente,
+            nomeFantasia: cliente?.nomeFantasia || null,
+            cnpj: cliente?.cnpj || null,
+            cpf: cliente?.cpf || null,
+            endereco: cliente?.endereco || null,
+            cidade: cliente?.cidade || null,
+            estado: cliente?.estado || null,
+            cep: cliente?.cep || null,
+            responsavel: cliente?.responsavel || null,
+
+            // Condições comerciais (salvas na aprovação)
+            formaPagamento: projeto.formaPagamento,
+            tipoDocumento: projeto.tipoDocumento,
+            condicoesPagamento: projeto.condicoesPagamento,
+            observacoesAprovacao: projeto.observacoesAprovacao,
+
+            // Número do contrato
+            numeroContrato,
+
+            // Memorial descritivo (versão mais recente)
+            memorial: memorial ? {
+                camposAtivos: memorial.camposAtivos,
+                piso: memorial.piso,
+                estrutura: memorial.estrutura,
+                areaAtendimento: memorial.areaAtendimento,
+                audioVisual: memorial.audioVisual,
+                comunicacaoVisual: memorial.comunicacaoVisual,
+                eletrica: memorial.eletrica,
+            } : null,
+
+            // Orçamento
+            orcamento: orcamento ? {
+                itens: orcamento.itens,
+                formaPagamento: orcamento.formaPagamento,
+                vencimentos: orcamento.vencimentos,
+                valorTotal: valorFinal,
+            } : null,
+
+            dataGeracao: new Date().toLocaleDateString('pt-BR', {
+                day: '2-digit', month: 'long', year: 'numeric'
+            }),
+        };
+
+        // Gera o arquivo .docx via script Node
+        const outputPath = `/tmp/contrato_${projeto.id}_${Date.now()}.docx`;
+        const scriptPath = new URL('./gerarContrato.js', import.meta.url).pathname;
+
+        await execFileAsync('node', [scriptPath, outputPath, JSON.stringify(dados)]);
+
+        // Envia o arquivo para download e apaga depois
+        const nomeArquivo = `Contrato_${(projeto.cliente || 'cliente').replace(/[^a-zA-Z0-9]/g, '_')}_${ano}.docx`;
+        res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.sendFile(outputPath, () => {
+            // Apaga o arquivo temporário após enviar
+            fs.unlink(outputPath, () => {});
+        });
+
+    } catch (error) {
+        console.error('Erro ao gerar contrato:', error);
+        res.status(500).json({ message: 'Erro ao gerar contrato: ' + error.message });
+    }
 });
 
 app.listen(3001, () => console.log(`Servidor rodando na porta 3001 [${isDev ? 'dev' : 'produção'}]`));
