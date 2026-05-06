@@ -107,96 +107,110 @@ function ModalVoltarStatus({ projeto, onConfirmar, onFechar }) {
 
 // ─── Modal de Aprovação/Reprovação ─────────────────────────────────────────
 function ModalResultado({ projeto, onConfirmar, onFechar }) {
-    const [resultado, setResultado]   = useState('') // 'aprovado' | 'reprovado'
-    const [etapa, setEtapa]           = useState(1)  // 1=resultado | 2=cliente | 3=dados+condicoes
+    const [resultado, setResultado]   = useState('')
+    const [etapa, setEtapa]           = useState(1)
+    // etapas: 1=resultado | 2=cliente | 3=dados cliente+condições | 4=agência? | 5=dados agência
     const [carregando, setCarregando] = useState(false)
     const [buscandoClientes, setBuscandoClientes] = useState(false)
     const [erro, setErro]             = useState('')
 
-    // Lista de clientes existentes para seleção
+    // ── Cliente ───────────────────────────────────────────────────────────
     const [clientesExistentes, setClientesExistentes] = useState([])
-    const [modoCliente, setModoCliente] = useState('') // 'existente' | 'novo'
+    const [modoCliente, setModoCliente]               = useState('')
     const [clienteSelecionado, setClienteSelecionado] = useState(null)
-    const [buscaCliente, setBuscaCliente] = useState('')
-
-    // Dados do cliente
-    const [dadosCliente, setDadosCliente] = useState({
+    const [buscaCliente, setBuscaCliente]             = useState('')
+    const [dadosCliente, setDadosCliente]             = useState({
         nomeEmpresa: projeto.cliente || '',
         nomeFantasia: '', cnpj: '', cpf: '', email: '',
-        telefone: '', endereco: '', cidade: '', estado: '',
-        cep: '', responsavel: '',
+        telefone: '', endereco: '', cidade: '', estado: '', cep: '', responsavel: '',
     })
-
-    // Avisos de duplicidade
     const [aviso, setAviso] = useState('')
 
-    // Condições comerciais
+    // ── Condições comerciais ──────────────────────────────────────────────
     const [condicoes, setCondicoes] = useState({
-        formaPagamento: '', tipoDocumento: '',
-        condicoesPagamento: '', observacoes: '',
+        formaPagamento: '', tipoDocumento: '', condicoesPagamento: '', observacoes: '',
     })
 
-    // ── Carrega clientes ao avançar para etapa 2 ──────────────────────────
+    // ── Agência ───────────────────────────────────────────────────────────
+    const [temAgencia, setTemAgencia]             = useState(null) // null | true | false
+    const [agenciasExistentes, setAgenciasExistentes] = useState([])
+    const [modoAgencia, setModoAgencia]           = useState('') // 'existente' | 'nova'
+    const [agenciaSelecionada, setAgenciaSelecionada] = useState(null)
+    const [buscaAgencia, setBuscaAgencia]         = useState('')
+    const [dadosAgencia, setDadosAgencia]         = useState({
+        nomeEmpresa: '', cnpj: '', cpf: '', responsavel: '', telefone: '', email: '',
+        endereco: '', cidade: '', estado: '', cep: '',
+    })
+
+    // ── Carrega clientes ──────────────────────────────────────────────────
     async function carregarClientes() {
         setBuscandoClientes(true)
         try {
             const lista = await api.getClientes()
-            // Só mostra clientes com dados completos (próprios do vendedor)
             setClientesExistentes(Array.isArray(lista) ? lista.filter(c => c.proprio !== false) : [])
-        } catch {
-            setClientesExistentes([])
-        } finally {
-            setBuscandoClientes(false)
-        }
+        } catch { setClientesExistentes([]) }
+        finally { setBuscandoClientes(false) }
     }
 
+    // ── Carrega agências ──────────────────────────────────────────────────
+    async function carregarAgencias() {
+        try {
+            const lista = await api.getAgencias()
+            setAgenciasExistentes(Array.isArray(lista) ? lista : [])
+        } catch { setAgenciasExistentes([]) }
+    }
+
+    // ── Handlers cliente ──────────────────────────────────────────────────
     function handleDadosChange(e) {
         const { name, value } = e.target
         setDadosCliente(prev => ({ ...prev, [name]: value }))
-
-        // Valida duplicidade de CNPJ/CPF em tempo real
         if (name === 'cnpj' && value.length >= 14) {
-            const duplicado = clientesExistentes.find(
-                c => c.cnpj && c.cnpj.replace(/\D/g, '') === value.replace(/\D/g, '') &&
-                c.id !== clienteSelecionado?.id
+            const dup = clientesExistentes.find(
+                c => c.cnpj && c.cnpj.replace(/\D/g, '') === value.replace(/\D/g, '') && c.id !== clienteSelecionado?.id
             )
-            setAviso(duplicado ? `⚠️ CNPJ já cadastrado para "${duplicado.nomeEmpresa}"` : '')
+            setAviso(dup ? `⚠️ CNPJ já cadastrado para "${dup.nomeEmpresa}"` : '')
         } else if (name === 'cpf' && value.length >= 11) {
-            const duplicado = clientesExistentes.find(
-                c => c.cpf && c.cpf.replace(/\D/g, '') === value.replace(/\D/g, '') &&
-                c.id !== clienteSelecionado?.id
+            const dup = clientesExistentes.find(
+                c => c.cpf && c.cpf.replace(/\D/g, '') === value.replace(/\D/g, '') && c.id !== clienteSelecionado?.id
             )
-            setAviso(duplicado ? `⚠️ CPF já cadastrado para "${duplicado.nomeEmpresa}"` : '')
-        } else if (name === 'cnpj' || name === 'cpf') {
-            setAviso('')
-        }
+            setAviso(dup ? `⚠️ CPF já cadastrado para "${dup.nomeEmpresa}"` : '')
+        } else if (name === 'cnpj' || name === 'cpf') { setAviso('') }
     }
 
     function handleCondicoesChange(e) {
         setCondicoes(prev => ({ ...prev, [e.target.name]: e.target.value }))
     }
 
-    // ── Seleciona cliente existente e preenche o formulário ───────────────
-    function selecionarClienteExistente(cliente) {
-        setClienteSelecionado(cliente)
+    function handleAgenciaChange(e) {
+        setDadosAgencia(prev => ({ ...prev, [e.target.name]: e.target.value }))
+    }
+
+    function selecionarClienteExistente(c) {
+        setClienteSelecionado(c)
         setDadosCliente({
-            nomeEmpresa:  cliente.nomeEmpresa  || '',
-            nomeFantasia: cliente.nomeFantasia || '',
-            cnpj:         cliente.cnpj         || '',
-            cpf:          cliente.cpf          || '',
-            email:        cliente.email        || '',
-            telefone:     cliente.telefone     || '',
-            endereco:     cliente.endereco     || '',
-            cidade:       cliente.cidade       || '',
-            estado:       cliente.estado       || '',
-            cep:          cliente.cep          || '',
-            responsavel:  cliente.responsavel  || '',
+            nomeEmpresa: c.nomeEmpresa || '', nomeFantasia: c.nomeFantasia || '',
+            cnpj: c.cnpj || '', cpf: c.cpf || '', email: c.email || '',
+            telefone: c.telefone || '', endereco: c.endereco || '',
+            cidade: c.cidade || '', estado: c.estado || '',
+            cep: c.cep || '', responsavel: c.responsavel || '',
         })
         setAviso('')
         setEtapa(3)
     }
 
-    // ── Fluxo de navegação entre etapas ──────────────────────────────────
+    function selecionarAgenciaExistente(a) {
+        setAgenciaSelecionada(a)
+        setDadosAgencia({
+            nomeEmpresa: a.nomeEmpresa || '', cnpj: a.cnpj || '',
+            cpf: a.cpf || '', responsavel: a.responsavel || '',
+            telefone: a.telefone || '', email: a.email || '',
+            endereco: a.endereco || '', cidade: a.cidade || '',
+            estado: a.estado || '', cep: a.cep || '',
+        })
+        setEtapa(5)
+    }
+
+    // ── Navegação ─────────────────────────────────────────────────────────
     async function avancarEtapa1() {
         if (!resultado) return
         if (resultado === 'reprovado') { handleSalvar(); return }
@@ -216,25 +230,60 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
             })
             setEtapa(3)
         }
-        // Se 'existente', a seleção já vai para etapa 3 direto
+    }
+
+    async function avancarEtapa3() {
+        if (!dadosCliente.nomeEmpresa?.trim()) { setErro('Nome da empresa é obrigatório'); return }
+        if (!condicoes.formaPagamento || !condicoes.tipoDocumento) {
+            setErro('Forma de pagamento e tipo de documento são obrigatórios'); return
+        }
+        if (aviso) { setErro('Corrija os dados duplicados antes de continuar'); return }
+        setErro('')
+        await carregarAgencias()
+        setEtapa(4)
+    }
+
+    async function avancarEtapa4() {
+        if (temAgencia === null) { setErro('Selecione uma opção'); return }
+        setErro('')
+        if (!temAgencia) {
+            // Sem agência — salva direto
+            handleSalvar()
+            return
+        }
+        setEtapa(5)
+    }
+
+    function avancarEtapa5() {
+        if (!modoAgencia) { setErro('Selecione uma opção'); return }
+        setErro('')
+        if (modoAgencia === 'nova') {
+            setAgenciaSelecionada(null)
+            setDadosAgencia({ nomeEmpresa: '', cnpj: '', cpf: '', responsavel: '', telefone: '', email: '', endereco: '', cidade: '', estado: '', cep: '' })
+        }
+        // Se 'existente', a seleção já pulou para o preenchimento
+        // Para 'nova', podemos ir para uma etapa de preenchimento ou direto no mesmo passo
+        // Neste layout ficamos no etapa 5 mas mostramos o formulário
     }
 
     // ── Salva ─────────────────────────────────────────────────────────────
     async function handleSalvar() {
-        if (resultado === 'aprovado') {
-            if (!dadosCliente.nomeEmpresa?.trim()) { setErro('Nome da empresa é obrigatório'); return }
-            if (!condicoes.formaPagamento || !condicoes.tipoDocumento) {
-                setErro('Forma de pagamento e tipo de documento são obrigatórios'); return
-            }
-            if (aviso) { setErro('Corrija os dados duplicados antes de continuar'); return }
-        }
         setCarregando(true)
         setErro('')
         try {
-            await onConfirmar({
+            const payload = {
                 resultado,
-                ...(resultado === 'aprovado' ? { ...dadosCliente, ...condicoes } : {})
-            })
+                ...(resultado === 'aprovado' ? {
+                    ...dadosCliente,
+                    ...condicoes,
+                    temAgencia: !!temAgencia,
+                    agenciaId:  agenciaSelecionada?.id || null,
+                    agenciaNova: (!agenciaSelecionada && temAgencia && dadosAgencia.nomeEmpresa)
+                        ? dadosAgencia
+                        : null,
+                } : {})
+            }
+            await onConfirmar(payload)
         } catch (err) {
             setErro('Erro ao salvar: ' + err.message)
         } finally {
@@ -242,19 +291,26 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
         }
     }
 
-    // ── Clientes filtrados pela busca ─────────────────────────────────────
+    // ── Listas filtradas ──────────────────────────────────────────────────
     const clientesFiltrados = clientesExistentes.filter(c =>
         !buscaCliente ||
         c.nomeEmpresa?.toLowerCase().includes(buscaCliente.toLowerCase()) ||
-        c.cnpj?.includes(buscaCliente) ||
-        c.cpf?.includes(buscaCliente)
+        c.cnpj?.includes(buscaCliente) || c.cpf?.includes(buscaCliente)
+    )
+    const agenciasFiltradas = agenciasExistentes.filter(a =>
+        !buscaAgencia ||
+        a.nomeEmpresa?.toLowerCase().includes(buscaAgencia.toLowerCase()) ||
+        a.cnpj?.includes(buscaAgencia)
     )
 
-    // ── Título por etapa ──────────────────────────────────────────────────
+    // ── Total de etapas visíveis no indicador ─────────────────────────────
+    const totalEtapas = 5
     const titulos = {
         1: 'Resultado do projeto',
         2: 'Vincular cliente',
         3: clienteSelecionado ? 'Confirmar dados do cliente' : 'Cadastrar novo cliente',
+        4: 'Há agência intermediadora?',
+        5: modoAgencia === 'nova' || !agenciaSelecionada ? 'Dados da agência' : 'Confirmar dados da agência',
     }
 
     return (
@@ -264,13 +320,11 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                 {/* Cabeçalho */}
                 <div className="px-6 py-5 border-b border-gray-100">
                     <div className="flex items-center gap-2 mb-0.5">
-                        {/* Indicador de etapas */}
                         {resultado === 'aprovado' && (
                             <div className="flex items-center gap-1 mr-2">
-                                {[1,2,3].map(n => (
+                                {[1,2,3,4,5].map(n => (
                                     <div key={n} className={`w-2 h-2 rounded-full transition-colors
-                                        ${etapa >= n ? 'bg-[#2D3AC2]' : 'bg-gray-200'}`}
-                                    />
+                                        ${etapa >= n ? 'bg-[#2D3AC2]' : 'bg-gray-200'}`} />
                                 ))}
                             </div>
                         )}
@@ -284,26 +338,20 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                     {/* ── ETAPA 1: Aprovado ou Reprovado ───────────────── */}
                     {etapa === 1 && (
                         <div className="flex flex-col gap-4">
-                            <p className="text-sm text-gray-600">
-                                O cliente aprovou ou reprovou a proposta enviada?
-                            </p>
+                            <p className="text-sm text-gray-600">O cliente aprovou ou reprovou a proposta enviada?</p>
                             <div className="grid grid-cols-2 gap-3">
-                                <button
-                                    onClick={() => setResultado('aprovado')}
+                                <button onClick={() => setResultado('aprovado')}
                                     className={`flex items-center gap-3 px-4 py-4 rounded-xl border-2 transition-all text-left
-                                        ${resultado === 'aprovado' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}
-                                >
+                                        ${resultado === 'aprovado' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}>
                                     <CheckCircle size={24} className={resultado === 'aprovado' ? 'text-green-600' : 'text-gray-300'} />
                                     <div>
                                         <p className="text-sm font-semibold text-gray-900">Aprovado</p>
                                         <p className="text-xs text-gray-400 mt-0.5">Cliente aceitou a proposta</p>
                                     </div>
                                 </button>
-                                <button
-                                    onClick={() => setResultado('reprovado')}
+                                <button onClick={() => setResultado('reprovado')}
                                     className={`flex items-center gap-3 px-4 py-4 rounded-xl border-2 transition-all text-left
-                                        ${resultado === 'reprovado' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-red-300'}`}
-                                >
+                                        ${resultado === 'reprovado' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-red-300'}`}>
                                     <XCircle size={24} className={resultado === 'reprovado' ? 'text-red-600' : 'text-gray-300'} />
                                     <div>
                                         <p className="text-sm font-semibold text-gray-900">Reprovado</p>
@@ -314,42 +362,30 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                         </div>
                     )}
 
-                    {/* ── ETAPA 2: Selecionar cliente existente ou novo ─── */}
+                    {/* ── ETAPA 2: Cliente existente ou novo ───────────── */}
                     {etapa === 2 && (
                         <div className="flex flex-col gap-4">
-                            <p className="text-sm text-gray-600">
-                                Este cliente já está cadastrado no sistema?
-                            </p>
-
+                            <p className="text-sm text-gray-600">Este cliente já está cadastrado no sistema?</p>
                             <div className="grid grid-cols-2 gap-3">
-                                <button
-                                    onClick={() => setModoCliente('existente')}
+                                <button onClick={() => setModoCliente('existente')}
                                     className={`flex flex-col gap-1 px-4 py-4 rounded-xl border-2 transition-all text-left
-                                        ${modoCliente === 'existente' ? 'border-[#2D3AC2] bg-blue-50' : 'border-gray-200 hover:border-[#2D3AC2]/40'}`}
-                                >
+                                        ${modoCliente === 'existente' ? 'border-[#2D3AC2] bg-blue-50' : 'border-gray-200 hover:border-[#2D3AC2]/40'}`}>
                                     <p className="text-sm font-semibold text-gray-900">Cliente existente</p>
                                     <p className="text-xs text-gray-400">Selecionar de um cadastro já existente</p>
                                 </button>
-                                <button
-                                    onClick={() => { setModoCliente('novo'); setClienteSelecionado(null) }}
+                                <button onClick={() => { setModoCliente('novo'); setClienteSelecionado(null) }}
                                     className={`flex flex-col gap-1 px-4 py-4 rounded-xl border-2 transition-all text-left
-                                        ${modoCliente === 'novo' ? 'border-[#2D3AC2] bg-blue-50' : 'border-gray-200 hover:border-[#2D3AC2]/40'}`}
-                                >
+                                        ${modoCliente === 'novo' ? 'border-[#2D3AC2] bg-blue-50' : 'border-gray-200 hover:border-[#2D3AC2]/40'}`}>
                                     <p className="text-sm font-semibold text-gray-900">Novo cliente</p>
                                     <p className="text-xs text-gray-400">Cadastrar um cliente novo</p>
                                 </button>
                             </div>
 
-                            {/* Lista de clientes existentes */}
                             {modoCliente === 'existente' && (
                                 <div className="flex flex-col gap-2">
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar por nome, CNPJ ou CPF..."
-                                        value={buscaCliente}
-                                        onChange={e => setBuscaCliente(e.target.value)}
-                                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition"
-                                    />
+                                    <input type="text" placeholder="Buscar por nome, CNPJ ou CPF..."
+                                        value={buscaCliente} onChange={e => setBuscaCliente(e.target.value)}
+                                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
                                     {buscandoClientes ? (
                                         <p className="text-sm text-gray-400 text-center py-4">Carregando...</p>
                                     ) : clientesFiltrados.length === 0 ? (
@@ -357,22 +393,13 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                                     ) : (
                                         <div className="flex flex-col gap-1.5 max-h-52 overflow-y-auto pr-1">
                                             {clientesFiltrados.map(c => (
-                                                <button
-                                                    key={c.id}
-                                                    onClick={() => selecionarClienteExistente(c)}
-                                                    className="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-[#2D3AC2]/40 hover:bg-blue-50 transition-all text-left group"
-                                                >
+                                                <button key={c.id} onClick={() => selecionarClienteExistente(c)}
+                                                    className="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-[#2D3AC2]/40 hover:bg-blue-50 transition-all text-left group">
                                                     <div className="min-w-0">
-                                                        <p className="text-sm font-medium text-gray-800 truncate group-hover:text-[#2D3AC2]">
-                                                            {c.nomeEmpresa}
-                                                        </p>
-                                                        <p className="text-xs text-gray-400">
-                                                            {c.cnpj || c.cpf || 'Sem documento'}
-                                                        </p>
+                                                        <p className="text-sm font-medium text-gray-800 truncate group-hover:text-[#2D3AC2]">{c.nomeEmpresa}</p>
+                                                        <p className="text-xs text-gray-400">{c.cnpj || c.cpf || 'Sem documento'}</p>
                                                     </div>
-                                                    <span className="text-xs text-[#2D3AC2] opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
-                                                        Selecionar →
-                                                    </span>
+                                                    <span className="text-xs text-[#2D3AC2] opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">Selecionar →</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -385,8 +412,6 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                     {/* ── ETAPA 3: Dados do cliente + condições ────────── */}
                     {etapa === 3 && (
                         <div className="flex flex-col gap-5">
-
-                            {/* Badge de cliente selecionado */}
                             {clienteSelecionado && (
                                 <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
                                     <div className="w-2 h-2 rounded-full bg-[#2D3AC2] shrink-0" />
@@ -395,12 +420,8 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                                     </p>
                                 </div>
                             )}
-
-                            {/* Aviso de duplicidade */}
                             {aviso && (
-                                <div className="px-3 py-2 bg-yellow-50 border border-yellow-300 rounded-lg text-sm text-yellow-800">
-                                    {aviso}
-                                </div>
+                                <div className="px-3 py-2 bg-yellow-50 border border-yellow-300 rounded-lg text-sm text-yellow-800">{aviso}</div>
                             )}
 
                             {/* Dados da empresa */}
@@ -419,15 +440,13 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                                     </div>
                                     <div className="flex flex-col gap-1">
                                         <label className="text-xs font-medium text-gray-500">CNPJ</label>
-                                        <input name="cnpj" value={dadosCliente.cnpj} onChange={handleDadosChange}
-                                            placeholder="00.000.000/0000-00"
+                                        <input name="cnpj" value={dadosCliente.cnpj} onChange={handleDadosChange} placeholder="00.000.000/0000-00"
                                             className={`border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 transition
                                                 ${aviso.includes('CNPJ') ? 'border-yellow-400 focus:border-yellow-400 focus:ring-yellow-200' : 'border-gray-200 focus:border-[#2D3AC2] focus:ring-[#2D3AC2]/20'}`} />
                                     </div>
                                     <div className="flex flex-col gap-1">
                                         <label className="text-xs font-medium text-gray-500">CPF (pessoa física)</label>
-                                        <input name="cpf" value={dadosCliente.cpf} onChange={handleDadosChange}
-                                            placeholder="000.000.000-00"
+                                        <input name="cpf" value={dadosCliente.cpf} onChange={handleDadosChange} placeholder="000.000.000-00"
                                             className={`border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 transition
                                                 ${aviso.includes('CPF') ? 'border-yellow-400 focus:border-yellow-400 focus:ring-yellow-200' : 'border-gray-200 focus:border-[#2D3AC2] focus:ring-[#2D3AC2]/20'}`} />
                                     </div>
@@ -463,8 +482,7 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                                     </div>
                                     <div className="flex flex-col gap-1">
                                         <label className="text-xs font-medium text-gray-500">Estado</label>
-                                        <input name="estado" value={dadosCliente.estado} onChange={handleDadosChange}
-                                            placeholder="SP"
+                                        <input name="estado" value={dadosCliente.estado} onChange={handleDadosChange} placeholder="SP"
                                             className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
                                     </div>
                                 </div>
@@ -509,10 +527,138 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                         </div>
                     )}
 
-                    {erro && (
-                        <div className="mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-                            {erro}
+                    {/* ── ETAPA 4: Tem agência? ─────────────────────────── */}
+                    {etapa === 4 && (
+                        <div className="flex flex-col gap-4">
+                            <p className="text-sm text-gray-600">
+                                Este projeto foi intermediado por uma agência?
+                            </p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button onClick={() => setTemAgencia(true)}
+                                    className={`flex flex-col gap-1 px-4 py-4 rounded-xl border-2 transition-all text-left
+                                        ${temAgencia === true ? 'border-[#2D3AC2] bg-blue-50' : 'border-gray-200 hover:border-[#2D3AC2]/40'}`}>
+                                    <p className="text-sm font-semibold text-gray-900">Sim, tem agência</p>
+                                    <p className="text-xs text-gray-400">Informar dados da intermediadora</p>
+                                </button>
+                                <button onClick={() => setTemAgencia(false)}
+                                    className={`flex flex-col gap-1 px-4 py-4 rounded-xl border-2 transition-all text-left
+                                        ${temAgencia === false ? 'border-gray-700 bg-gray-50' : 'border-gray-200 hover:border-gray-400'}`}>
+                                    <p className="text-sm font-semibold text-gray-900">Não, direto com o cliente</p>
+                                    <p className="text-xs text-gray-400">Sem intermediadora</p>
+                                </button>
+                            </div>
+
+                            {/* Se tem agência, mostra seleção de modo */}
+                            {temAgencia === true && (
+                                <div className="flex flex-col gap-3 mt-1">
+                                    <p className="text-sm font-medium text-gray-700">Esta agência já está cadastrada?</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button onClick={() => setModoAgencia('existente')}
+                                            className={`flex flex-col gap-1 px-4 py-3 rounded-xl border-2 transition-all text-left
+                                                ${modoAgencia === 'existente' ? 'border-[#2D3AC2] bg-blue-50' : 'border-gray-200 hover:border-[#2D3AC2]/40'}`}>
+                                            <p className="text-sm font-semibold text-gray-900">Agência existente</p>
+                                            <p className="text-xs text-gray-400">Selecionar do cadastro</p>
+                                        </button>
+                                        <button onClick={() => { setModoAgencia('nova'); setAgenciaSelecionada(null) }}
+                                            className={`flex flex-col gap-1 px-4 py-3 rounded-xl border-2 transition-all text-left
+                                                ${modoAgencia === 'nova' ? 'border-[#2D3AC2] bg-blue-50' : 'border-gray-200 hover:border-[#2D3AC2]/40'}`}>
+                                            <p className="text-sm font-semibold text-gray-900">Nova agência</p>
+                                            <p className="text-xs text-gray-400">Cadastrar agora</p>
+                                        </button>
+                                    </div>
+
+                                    {/* Lista de agências existentes */}
+                                    {modoAgencia === 'existente' && (
+                                        <div className="flex flex-col gap-2">
+                                            <input type="text" placeholder="Buscar por nome ou CNPJ..."
+                                                value={buscaAgencia} onChange={e => setBuscaAgencia(e.target.value)}
+                                                className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
+                                            {agenciasFiltradas.length === 0 ? (
+                                                <p className="text-sm text-gray-400 text-center py-4">Nenhuma agência cadastrada ainda.</p>
+                                            ) : (
+                                                <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto pr-1">
+                                                    {agenciasFiltradas.map(a => (
+                                                        <button key={a.id} onClick={() => selecionarAgenciaExistente(a)}
+                                                            className="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-[#2D3AC2]/40 hover:bg-blue-50 transition-all text-left group">
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-medium text-gray-800 truncate group-hover:text-[#2D3AC2]">{a.nomeEmpresa}</p>
+                                                                <p className="text-xs text-gray-400">{a.cnpj || a.cpf || a.responsavel || '—'}</p>
+                                                            </div>
+                                                            <span className="text-xs text-[#2D3AC2] opacity-0 group-hover:opacity-100 shrink-0 ml-2">Selecionar →</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
+                    )}
+
+                    {/* ── ETAPA 5: Dados da agência ─────────────────────── */}
+                    {etapa === 5 && (
+                        <div className="flex flex-col gap-4">
+                            {agenciaSelecionada && (
+                                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <div className="w-2 h-2 rounded-full bg-[#2D3AC2] shrink-0" />
+                                    <p className="text-sm text-blue-800">
+                                        Agência: <span className="font-semibold">{agenciaSelecionada.nomeEmpresa}</span>
+                                    </p>
+                                </div>
+                            )}
+                            <p className="text-sm font-semibold text-gray-700">Dados da agência intermediadora</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="col-span-2 flex flex-col gap-1">
+                                    <label className="text-xs font-medium text-gray-500">Nome / Razão Social <span className="text-red-500">*</span></label>
+                                    <input name="nomeEmpresa" value={dadosAgencia.nomeEmpresa} onChange={handleAgenciaChange}
+                                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-medium text-gray-500">CNPJ</label>
+                                    <input name="cnpj" value={dadosAgencia.cnpj} onChange={handleAgenciaChange} placeholder="00.000.000/0000-00"
+                                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-medium text-gray-500">CPF (pessoa física)</label>
+                                    <input name="cpf" value={dadosAgencia.cpf} onChange={handleAgenciaChange} placeholder="000.000.000-00"
+                                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-medium text-gray-500">Responsável</label>
+                                    <input name="responsavel" value={dadosAgencia.responsavel} onChange={handleAgenciaChange}
+                                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-medium text-gray-500">Telefone</label>
+                                    <input name="telefone" value={dadosAgencia.telefone} onChange={handleAgenciaChange}
+                                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
+                                </div>
+                                <div className="col-span-2 flex flex-col gap-1">
+                                    <label className="text-xs font-medium text-gray-500">E-mail</label>
+                                    <input name="email" type="email" value={dadosAgencia.email} onChange={handleAgenciaChange}
+                                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-medium text-gray-500">Endereço</label>
+                                    <input name="endereco" value={dadosAgencia.endereco} onChange={handleAgenciaChange}
+                                        className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-medium text-gray-500">Cidade / Estado</label>
+                                    <div className="flex gap-2">
+                                        <input name="cidade" value={dadosAgencia.cidade} onChange={handleAgenciaChange} placeholder="Cidade"
+                                            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
+                                        <input name="estado" value={dadosAgencia.estado} onChange={handleAgenciaChange} placeholder="UF"
+                                            className="w-16 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#2D3AC2] focus:ring-2 focus:ring-[#2D3AC2]/20 transition" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {erro && (
+                        <div className="mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{erro}</div>
                     )}
                 </div>
 
@@ -521,6 +667,8 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                     <button
                         onClick={() => {
                             setErro('')
+                            if (etapa === 5) { setEtapa(4); return }
+                            if (etapa === 4) { setEtapa(3); return }
                             if (etapa === 3) { setEtapa(2); return }
                             if (etapa === 2) { setEtapa(1); return }
                             onFechar()
@@ -534,15 +682,19 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                             setErro('')
                             if (etapa === 1) avancarEtapa1()
                             else if (etapa === 2) avancarEtapa2()
+                            else if (etapa === 3) avancarEtapa3()
+                            else if (etapa === 4) avancarEtapa4()
                             else handleSalvar()
                         }}
-                        disabled={!resultado || carregando || (etapa === 1 && resultado === 'aprovado' && buscandoClientes)}
+                        disabled={!resultado || carregando}
                         className={`px-5 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50
                             ${resultado === 'reprovado' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
                     >
                         {carregando ? 'Salvando...' :
                          etapa === 1 ? (resultado === 'reprovado' ? 'Confirmar reprovação' : 'Próximo →') :
-                         etapa === 2 ? (modoCliente === 'novo' ? 'Preencher dados →' : 'Selecionar →') :
+                         etapa === 2 ? (modoCliente === 'novo' ? 'Preencher dados →' : 'Próximo →') :
+                         etapa === 3 ? 'Próximo →' :
+                         etapa === 4 ? (temAgencia === false ? 'Confirmar aprovação' : 'Próximo →') :
                          'Confirmar aprovação'}
                     </button>
                 </div>

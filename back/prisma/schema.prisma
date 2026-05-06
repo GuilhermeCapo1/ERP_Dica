@@ -17,35 +17,37 @@ model User {
   projetosProjetista  Projeto[]   @relation("Projetista")
   memoriais           Memorial[]
   orcamentos          Orcamento[]
-  contratos    Contrato[]
+  contratos           Contrato[]
 }
 
 model Projeto {
-  id             String          @id @default(auto()) @map("_id") @db.ObjectId
-  nome           String
-  cliente        String
-  feira          String?
-  metragem       Float?
-  datas          String?
-  local          String?
-  briefing       String?
-  dataLimite     DateTime?
-  arquivos       Json?
-  status         String          @default("Recebido")
-  tipo           String?
-  responsavelId  String?         @db.ObjectId
-  responsavel    User?           @relation("Responsavel", fields: [responsavelId], references: [id])
-  projetistaId   String?         @db.ObjectId
-  projetista     User?           @relation("Projetista", fields: [projetistaId], references: [id])
-  criadoEm       DateTime        @default(now())
-  atualizadoEm   DateTime        @updatedAt
-  imagensProjeto ImagemProjeto[]
-  memoriais      Memorial[]
-  orcamentos     Orcamento[]
-  contratos    Contrato[]
+  id                   String          @id @default(auto()) @map("_id") @db.ObjectId
+  nome                 String
+  cliente              String
+  feira                String?
+  metragem             Float?
+  datas                String?
+  local                String?
+  briefing             String?
+  dataLimite           DateTime?
+  arquivos             Json?
+  status               String          @default("Recebido")
+  tipo                 String?
+  responsavelId        String?         @db.ObjectId
+  responsavel          User?           @relation("Responsavel", fields: [responsavelId], references: [id])
+  projetistaId         String?         @db.ObjectId
+  projetista           User?           @relation("Projetista", fields: [projetistaId], references: [id])
+  criadoEm             DateTime        @default(now())
+  atualizadoEm         DateTime        @updatedAt
+  imagensProjeto       ImagemProjeto[]
+  memoriais            Memorial[]
+  orcamentos           Orcamento[]
+  contratos            Contrato[]
   resultadoFinal       String?
-  clienteId            String?  @db.ObjectId
-  clienteRef           Cliente? @relation(fields: [clienteId], references: [id])
+  clienteId            String?         @db.ObjectId
+  clienteRef           Cliente?        @relation(fields: [clienteId], references: [id])
+  agenciaId            String?         @db.ObjectId
+  agenciaRef           Agencia?        @relation(fields: [agenciaId], references: [id])
   formaPagamento       String?
   tipoDocumento        String?
   condicoesPagamento   String?
@@ -53,7 +55,7 @@ model Projeto {
 
   // Orçamento aprovado — preenchido automaticamente na aprovação
   // O memorial aprovado vem via orcamentoAprovado.memorial (include no Prisma)
-  orcamentoAprovadoId  String?  @db.ObjectId
+  orcamentoAprovadoId String? @db.ObjectId
 }
 
 model ImagemProjeto {
@@ -63,7 +65,7 @@ model ImagemProjeto {
   filename  String
   url       String
   ordem     Int      @default(0)
-  criadoEm DateTime @default(now())
+  criadoEm  DateTime @default(now())
 }
 
 model Memorial {
@@ -79,11 +81,11 @@ model Memorial {
   eletrica          String?
   camposAtivos      String     @default("[\"piso\",\"estrutura\",\"areaAtendimento\",\"audioVisual\",\"comunicacaoVisual\",\"eletrica\"]")
   ordemImagens      String     @default("[]")
-  criadoEm         DateTime   @default(now())
-  atualizadoEm     DateTime   @updatedAt
-  criadoPorId      String?    @db.ObjectId
-  criadoPor        User?      @relation(fields: [criadoPorId], references: [id])
-  orcamento        Orcamento?
+  criadoEm          DateTime   @default(now())
+  atualizadoEm      DateTime   @updatedAt
+  criadoPorId       String?    @db.ObjectId
+  criadoPor         User?      @relation(fields: [criadoPorId], references: [id])
+  orcamento         Orcamento?
 }
 
 model Orcamento {
@@ -100,10 +102,10 @@ model Orcamento {
   dataOrcamento  DateTime  @default(now())
   enviado        Boolean   @default(false)
   enviadoEm      DateTime?
-  criadoEm      DateTime  @default(now())
-  atualizadoEm  DateTime  @updatedAt
-  criadoPorId   String?   @db.ObjectId
-  criadoPor     User?     @relation(fields: [criadoPorId], references: [id])
+  criadoEm       DateTime  @default(now())
+  atualizadoEm   DateTime  @updatedAt
+  criadoPorId    String?   @db.ObjectId
+  criadoPor      User?     @relation(fields: [criadoPorId], references: [id])
 }
 
 model Cliente {
@@ -119,22 +121,46 @@ model Cliente {
   estado       String?
   cep          String?
   responsavel  String?
-  criadoEm    DateTime  @default(now())
-  atualizadoEm DateTime @updatedAt
+  criadoEm     DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
   projetos     Projeto[]
 }
 
 model Contrato {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  projetoId       String    @db.ObjectId
-  projeto         Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  projetoId String  @db.ObjectId
+  projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
 
-  numero          String?                       // ex: "114/2026" — editável antes de gerar
+  numero          String? // ex: "114/2026" — editável antes de gerar
   assinado        Boolean   @default(false)
   assinadoEm      DateTime?
+  testemunha1Nome String?
+  testemunha1Cpf  String?
+  testemunha2Nome String?
+  testemunha2Cpf  String?
 
-  criadoEm        DateTime  @default(now())
-  atualizadoEm    DateTime  @updatedAt
-  criadoPorId     String?   @db.ObjectId
-  criadoPor       User?     @relation(fields: [criadoPorId], references: [id])
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  criadoPorId  String?  @db.ObjectId
+  criadoPor    User?    @relation(fields: [criadoPorId], references: [id])
+}
+
+model Agencia {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  nomeEmpresa String
+  cnpj        String?
+  cpf         String?
+  responsavel String?
+  telefone    String?
+  email       String?
+  endereco    String?
+  cidade      String?
+  estado      String?
+  cep         String?
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  // Projetos que passaram por esta agência
+  projetos Projeto[]
 }

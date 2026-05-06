@@ -229,7 +229,7 @@ export async function deletarCliente(clienteId) {
     })
 }
 
-// ── Contratos — adicionar ao api.js ───────────────────────────────────────
+// ── Contratos ───────────────────────────────────────
 
 // Lista todos os contratos (filtrado pelo cargo no backend)
 export async function getContratos() {
@@ -286,4 +286,37 @@ export async function baixarContrato(contratoId, nomeCliente) {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
+}
+
+// ── Agências ────────────────────────────────────────
+
+
+// Lista todas as agências (filtrado pelo cargo no backend)
+export async function getAgencias() {
+    return request(`${API_URL}/agencias`)
+}
+
+
+// Cria nova agência — só nome é obrigatório, o resto pode ser editado depois
+export async function criarAgencia(dados) {
+    return request(`${API_URL}/agencias`, {
+        method: 'POST',
+        body: JSON.stringify(dados),
+    })
+}
+
+// Atualiza dados da agência (nome, CNPJ, endereço, etc) — não mexe em contratos ou projetos vinculados
+export async function atualizarAgencia(agenciaId, dados) {
+    return request(`${API_URL}/agencias/${agenciaId}`, {
+        method: 'PUT',
+        body: JSON.stringify(dados),
+    })
+}
+
+// Agora aceita número + testemunhas juntos
+export async function atualizarContrato(contratoId, dados) {
+    return request(`${API_URL}/contratos/${contratoId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(dados),
+    })
 }

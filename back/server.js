@@ -1235,4 +1235,306 @@ app.delete('/contratos/:id', authMiddleware, async (req, res) => {
     }
 });
 
+// ══════════════════════════════════════════════════════════════════════════
+// AGÊNCIAS — adicionar ao server.js (antes do app.listen)
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── Lista todas as agências ───────────────────────────────────────────────
+app.get('/agencias', authMiddleware, async (req, res) => {
+    try {
+        const agencias = await prisma.agencia.findMany({
+            orderBy: { nomeEmpresa: 'asc' },
+        })
+        res.json(agencias)
+    } catch (err) { res.status(500).json({ message: err.message }) }
+})
+
+// ── Cria nova agência ─────────────────────────────────────────────────────
+app.post('/agencias', authMiddleware, async (req, res) => {
+    const { nomeEmpresa, cnpj, cpf, responsavel, telefone, email, endereco, cidade, estado, cep } = req.body
+    if (!nomeEmpresa?.trim()) return res.status(400).json({ message: 'Nome da agência é obrigatório' })
+    try {
+        const agencia = await prisma.agencia.create({
+            data: { nomeEmpresa, cnpj, cpf, responsavel, telefone, email, endereco, cidade, estado, cep }
+        })
+        res.status(201).json(agencia)
+    } catch (err) { res.status(500).json({ message: err.message }) }
+})
+
+// ── Atualiza agência ──────────────────────────────────────────────────────
+app.put('/agencias/:id', authMiddleware, async (req, res) => {
+    const { nomeEmpresa, cnpj, cpf, responsavel, telefone, email, endereco, cidade, estado, cep } = req.body
+    try {
+        const agencia = await prisma.agencia.update({
+            where: { id: req.params.id },
+            data: { nomeEmpresa, cnpj, cpf, responsavel, telefone, email, endereco, cidade, estado, cep }
+        })
+        res.json(agencia)
+    } catch (err) { res.status(500).json({ message: err.message }) }
+})
+
+// ── Vincula agência a um projeto (chamado na aprovação) ───────────────────
+app.patch('/projetos/:id/agencia', authMiddleware, async (req, res) => {
+    const { agenciaId } = req.body
+    try {
+        const projeto = await prisma.projeto.update({
+            where: { id: req.params.id },
+            data: { agenciaId: agenciaId || null }
+        })
+        res.json(projeto)
+    } catch (err) { res.status(500).json({ message: err.message }) }
+})
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONTRATO — substitua a rota PATCH /contratos/:id existente por esta
+// (adiciona suporte a testemunhas)
+// ══════════════════════════════════════════════════════════════════════════
+
+app.patch('/contratos/:id', authMiddleware, async (req, res) => {
+    const { numero, testemunha1Nome, testemunha1Cpf, testemunha2Nome, testemunha2Cpf } = req.body
+    try {
+        const contrato = await prisma.contrato.update({
+            where: { id: req.params.id },
+            data: {
+                ...(numero !== undefined && { numero }),
+                ...(testemunha1Nome !== undefined && { testemunha1Nome }),
+                ...(testemunha1Cpf !== undefined && { testemunha1Cpf }),
+                ...(testemunha2Nome !== undefined && { testemunha2Nome }),
+                ...(testemunha2Cpf !== undefined && { testemunha2Cpf }),
+            },
+        })
+        res.json(contrato)
+    } catch {
+        res.status(500).json({ message: 'Erro ao atualizar contrato' })
+    }
+})
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONTRATO DOWNLOAD — substitua a rota GET /contratos/:id/download existente
+// por esta versão completa (adiciona agência e testemunhas)
+// ══════════════════════════════════════════════════════════════════════════
+
+app.get('/contratos/:id/download', authMiddleware, async (req, res) => {
+    try {
+        const contrato = await prisma.contrato.findUnique({
+            where: { id: req.params.id },
+            include: {
+                projeto: {
+                    include: {
+                        clienteRef: true,
+                        agenciaRef: true,
+                        memoriais: { orderBy: { versao: 'desc' }, take: 1 },
+                        orcamentos: { orderBy: { versao: 'desc' }, take: 1 },
+                    }
+                }
+            }
+        })
+
+        if (!contrato) return res.status(404).json({ message: 'Contrato não encontrado' })
+
+        const projeto = contrato.projeto
+        const cliente = projeto.clienteRef
+        const agencia = projeto.agenciaRef || null
+        const memorial = projeto.memoriais?.[0] || null
+        const orcamento = projeto.orcamentos?.[0] || null
+
+        const dados = {
+            nome: projeto.nome,
+            feira: projeto.feira,
+            datas: projeto.datas,
+            local: projeto.local,
+            metragem: projeto.metragem,
+
+            // ── Dados do cliente (CONTRATANTE) ────────────────────────
+            nomeEmpresa: cliente?.nomeEmpresa || projeto.cliente,
+            nomeFantasia: cliente?.nomeFantasia || null,
+            cnpj: cliente?.cnpj || null,
+            cpf: cliente?.cpf || null,
+            endereco: cliente?.endereco || null,
+            cidade: cliente?.cidade || null,
+            estado: cliente?.estado || null,
+            cep: cliente?.cep || null,
+            responsavel: cliente?.responsavel || null,
+
+            // ── Condições comerciais ──────────────────────────────────
+            formaPagamento: projeto.formaPagamento,
+            tipoDocumento: projeto.tipoDocumento,
+            condicoesPagamento: projeto.condicoesPagamento,
+            observacoesAprovacao: projeto.observacoesAprovacao,
+
+            numeroContrato: contrato.numero || '___/____',
+
+            // ── Agência intermediadora (opcional) ─────────────────────
+            agencia: agencia ? {
+                nomeEmpresa: agencia.nomeEmpresa,
+                cnpj: agencia.cnpj || null,
+                cpf: agencia.cpf || null,
+                responsavel: agencia.responsavel || null,
+                endereco: agencia.endereco || null,
+                cidade: agencia.cidade || null,
+                estado: agencia.estado || null,
+                cep: agencia.cep || null,
+            } : null,
+
+            // ── Testemunhas ───────────────────────────────────────────
+            testemunha1Nome: contrato.testemunha1Nome || null,
+            testemunha1Cpf: contrato.testemunha1Cpf || null,
+            testemunha2Nome: contrato.testemunha2Nome || null,
+            testemunha2Cpf: contrato.testemunha2Cpf || null,
+
+            // ── Memorial e orçamento ──────────────────────────────────
+            memorial: memorial ? {
+                camposAtivos: memorial.camposAtivos,
+                piso: memorial.piso,
+                estrutura: memorial.estrutura,
+                areaAtendimento: memorial.areaAtendimento,
+                audioVisual: memorial.audioVisual,
+                comunicacaoVisual: memorial.comunicacaoVisual,
+                eletrica: memorial.eletrica,
+            } : null,
+
+            orcamento: orcamento ? {
+                itens: orcamento.itens,
+                formaPagamento: orcamento.formaPagamento,
+                vencimentos: orcamento.vencimentos,
+            } : null,
+
+            dataGeracao: new Date().toLocaleDateString('pt-BR', {
+                day: '2-digit', month: 'long', year: 'numeric'
+            }),
+        }
+
+        const scriptPath = join(__dirname, 'gerarContrato.js')
+        const outputPath = join(tmpdir(), `contrato_${contrato.id}_${Date.now()}.docx`)
+
+        await execFileAsync('node', [scriptPath, outputPath, JSON.stringify(dados)])
+
+        const nomeArquivo = `Contrato_${(projeto.cliente || 'cliente').replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().getFullYear()}.docx`
+        res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`)
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+
+        res.sendFile(resolve(outputPath), (err) => {
+            fs.unlink(outputPath, () => { })
+        })
+
+    } catch (error) {
+        console.error('Erro ao gerar contrato:', error)
+        res.status(500).json({ message: 'Erro ao gerar contrato: ' + error.message })
+    }
+})
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// APROVAÇÃO — substitua a rota PATCH /projetos/:id/resultado existente
+// por esta versão que salva a agência junto
+// ══════════════════════════════════════════════════════════════════════════
+
+app.patch('/projetos/:id/resultado', authMiddleware, async (req, res, next) => {
+    const {
+        resultado,
+        // Dados do cliente final
+        nomeEmpresa, nomeFantasia, cnpj, cpf, email, telefone,
+        endereco, cidade, estado, cep, responsavel,
+        // Condições
+        formaPagamento, tipoDocumento, condicoesPagamento, observacoes,
+        // Agência (opcional)
+        temAgencia,
+        agenciaId,           // ID se selecionou existente
+        agenciaNova,         // objeto com dados se cadastrou nova
+    } = req.body
+
+    if (!['aprovado', 'reprovado'].includes(resultado))
+        return res.status(400).json({ message: 'Resultado inválido' })
+
+    try {
+        const projeto = await prisma.projeto.findUnique({
+            where: { id: req.params.id },
+            select: { responsavelId: true, cliente: true }
+        })
+        if (!projeto) return res.status(404).json({ message: 'Projeto não encontrado' })
+        if (projeto.responsavelId !== req.userId)
+            return res.status(403).json({ message: 'Apenas o vendedor responsável pode marcar o resultado' })
+
+        let clienteId = undefined
+        let agenciaFinal = undefined
+
+        if (resultado === 'aprovado' && nomeEmpresa) {
+            // ── Salva/atualiza cliente ────────────────────────────────
+            const clienteExistente = cnpj
+                ? await prisma.cliente.findFirst({ where: { cnpj } })
+                : null
+
+            if (clienteExistente) {
+                await prisma.cliente.update({
+                    where: { id: clienteExistente.id },
+                    data: { nomeEmpresa, nomeFantasia, cnpj, cpf, email, telefone, endereco, cidade, estado, cep, responsavel }
+                })
+                clienteId = clienteExistente.id
+            } else {
+                const novoCliente = await prisma.cliente.create({
+                    data: { nomeEmpresa, nomeFantasia, cnpj, cpf, email, telefone, endereco, cidade, estado, cep, responsavel }
+                })
+                clienteId = novoCliente.id
+            }
+
+            // ── Salva/vincula agência (se informada) ──────────────────
+            if (temAgencia) {
+                if (agenciaId) {
+                    // Agência existente selecionada
+                    agenciaFinal = agenciaId
+                } else if (agenciaNova?.nomeEmpresa) {
+                    // Nova agência cadastrada na hora
+                    const nova = await prisma.agencia.create({
+                        data: {
+                            nomeEmpresa: agenciaNova.nomeEmpresa,
+                            cnpj: agenciaNova.cnpj || null,
+                            cpf: agenciaNova.cpf || null,
+                            responsavel: agenciaNova.responsavel || null,
+                            telefone: agenciaNova.telefone || null,
+                            email: agenciaNova.email || null,
+                            endereco: agenciaNova.endereco || null,
+                            cidade: agenciaNova.cidade || null,
+                            estado: agenciaNova.estado || null,
+                            cep: agenciaNova.cep || null,
+                        }
+                    })
+                    agenciaFinal = nova.id
+                }
+            }
+        }
+
+        // ── Orçamento aprovado ────────────────────────────────────────
+        let orcamentoAprovadoId = undefined
+        if (resultado === 'aprovado') {
+            const orcamentoAprovado = await prisma.orcamento.findFirst({
+                where: { projetoId: req.params.id, enviado: true },
+                orderBy: { versao: 'desc' },
+                select: { id: true }
+            })
+            orcamentoAprovadoId = orcamentoAprovado?.id
+        }
+
+        const projetoAtualizado = await prisma.projeto.update({
+            where: { id: req.params.id },
+            data: {
+                resultadoFinal: resultado,
+                status: resultado === 'aprovado' ? 'Aprovado' : 'Reprovado',
+                ...(clienteId && { clienteId }),
+                ...(agenciaFinal && { agenciaId: agenciaFinal }),
+                ...(resultado === 'aprovado' && {
+                    formaPagamento,
+                    tipoDocumento,
+                    condicoesPagamento,
+                    observacoesAprovacao: observacoes,
+                    ...(orcamentoAprovadoId && { orcamentoAprovadoId })
+                })
+            }
+        })
+
+        res.json(projetoAtualizado)
+    } catch (err) { next(err) }
+})
+
 app.listen(3001, () => console.log(`Servidor rodando na porta 3001 [${isDev ? 'dev' : 'produção'}]`));
