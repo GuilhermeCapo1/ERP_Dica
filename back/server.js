@@ -435,12 +435,63 @@ app.patch('/projetos/:id/projetista', authMiddleware, async (req, res, next) => 
     } catch (err) { next(err); }
 });
 
+// ── Retorna lista de agências ──────────────────────────────────────────────
+app.get('/agencias', authMiddleware, async (req, res, next) => {
+    try {
+        const agencias = await prisma.agencia.findMany({
+            orderBy: { nomeEmpresa: 'asc' }
+        });
+        res.json(agencias);
+    } catch (err) { next(err); }
+});
+
+// ── Retorna projetos de uma agência específica ─────────────────────────────
+app.get('/agencias/:id/projetos', authMiddleware, async (req, res, next) => {
+    try {
+        const projetos = await prisma.projeto.findMany({
+            where: { agenciaId: req.params.id },
+            include: {
+                cliente: {
+                    select: {
+                        id: true,
+                        nomeEmpresa: true,
+                        nomeFantasia: true,
+                        cnpj: true,
+                        cpf: true,
+                        email: true,
+                        telefone: true,
+                        endereco: true,
+                        cidade: true,
+                        estado: true,
+                    }
+                },
+                memorial: {
+                    select: { id: true, titulo: true, criadoEm: true },
+                    take: 1
+                },
+                orcamento: {
+                    select: { id: true, versao: true, valor: true, criadoEm: true },
+                    orderBy: { versao: 'desc' },
+                    take: 1
+                },
+                contrato: {
+                    select: { id: true, numero: true, criadoEm: true },
+                    take: 1
+                }
+            },
+            orderBy: { criadoEm: 'desc' }
+        });
+        res.json(projetos);
+    } catch (err) { next(err); }
+});
+
 app.patch('/projetos/:id/resultado', authMiddleware, async (req, res, next) => {
     const {
         resultado,
         nomeEmpresa, nomeFantasia, cnpj, cpf, email, telefone,
         endereco, cidade, estado, cep, responsavel,
-        formaPagamento, tipoDocumento, condicoesPagamento, observacoes
+        formaPagamento, tipoDocumento, condicoesPagamento, observacoes,
+        temAgencia, agenciaId, agenciaNova
     } = req.body;
 
     if (!['aprovado', 'reprovado'].includes(resultado))
@@ -476,6 +527,32 @@ app.patch('/projetos/:id/resultado', authMiddleware, async (req, res, next) => {
             }
         }
 
+        // ── Processa agência (se aprovado) ────────────────────────────────────
+        let finalAgenciaId = undefined
+        if (resultado === 'aprovado' && temAgencia) {
+            if (agenciaNova && agenciaNova.nomeEmpresa) {
+                // Cria nova agência
+                const novaAgencia = await prisma.agencia.create({
+                    data: {
+                        nomeEmpresa: agenciaNova.nomeEmpresa,
+                        cnpj: agenciaNova.cnpj || null,
+                        cpf: agenciaNova.cpf || null,
+                        responsavel: agenciaNova.responsavel || null,
+                        telefone: agenciaNova.telefone || null,
+                        email: agenciaNova.email || null,
+                        endereco: agenciaNova.endereco || null,
+                        cidade: agenciaNova.cidade || null,
+                        estado: agenciaNova.estado || null,
+                        cep: agenciaNova.cep || null,
+                    }
+                });
+                finalAgenciaId = novaAgencia.id;
+            } else if (agenciaId) {
+                // Usa agência existente
+                finalAgenciaId = agenciaId;
+            }
+        }
+
         // Busca o orçamento aprovado — maior versão com enviado: true
         let orcamentoAprovadoId = undefined
         if (resultado === 'aprovado') {
@@ -498,6 +575,7 @@ app.patch('/projetos/:id/resultado', authMiddleware, async (req, res, next) => {
                     tipoDocumento,
                     condicoesPagamento,
                     observacoesAprovacao: observacoes,
+                    ...(finalAgenciaId && { agenciaId: finalAgenciaId }),
                     ...(orcamentoAprovadoId && { orcamentoAprovadoId })
                 })
             }

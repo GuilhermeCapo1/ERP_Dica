@@ -308,6 +308,10 @@ export async function getAgencia(agenciaId) {
     return request(`${API_URL}/agencias/${agenciaId}`)
 }
 
+export async function getProjetosAgencia(agenciaId) {
+    return request(`${API_URL}/agencias/${agenciaId}/projetos`)
+}
+
 // Cria nova agência — só nome é obrigatório, o resto pode ser editado depois
 export async function criarAgencia(dados) {
     return request(`${API_URL}/agencias`, {
