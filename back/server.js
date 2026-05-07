@@ -1243,6 +1243,16 @@ app.delete('/contratos/:id', authMiddleware, async (req, res) => {
 app.get('/agencias', authMiddleware, async (req, res) => {
     try {
         const agencias = await prisma.agencia.findMany({
+            include: {
+                projetos: {
+                    select: {
+                        id: true, nome: true, cliente: true,
+                        status: true, feira: true, local: true,
+                        criadoEm: true,
+                    },
+                    orderBy: { criadoEm: 'desc' },
+                }
+            },
             orderBy: { nomeEmpresa: 'asc' },
         })
         res.json(agencias)
@@ -1270,6 +1280,29 @@ app.put('/agencias/:id', authMiddleware, async (req, res) => {
             data: { nomeEmpresa, cnpj, cpf, responsavel, telefone, email, endereco, cidade, estado, cep }
         })
         res.json(agencia)
+    } catch (err) { res.status(500).json({ message: err.message }) }
+})
+
+// ── Exclui agência ───────────────────────────────────────────────────────
+
+app.delete('/agencias/:id', authMiddleware, async (req, res) => {
+    try {
+        const usuario = await prisma.user.findUnique({
+            where: { id: req.userId },
+            select: { cargo: true }
+        })
+        const isGestor = ['gerente', 'diretor'].includes(usuario?.cargo?.toLowerCase())
+        if (!isGestor)
+            return res.status(403).json({ message: 'Apenas gerente ou diretor pode excluir agências' })
+ 
+        // Remove vínculo dos projetos antes de deletar
+        await prisma.projeto.updateMany({
+            where: { agenciaId: req.params.id },
+            data: { agenciaId: null }
+        })
+ 
+        await prisma.agencia.delete({ where: { id: req.params.id } })
+        res.json({ message: 'Agência excluída com sucesso' })
     } catch (err) { res.status(500).json({ message: err.message }) }
 })
 

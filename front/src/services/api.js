@@ -266,6 +266,14 @@ export async function deletarContrato(contratoId) {
     })
 }
 
+// Agora aceita número + testemunhas juntos
+export async function atualizarContrato(contratoId, dados) {
+    return request(`${API_URL}/contratos/${contratoId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(dados),
+    })
+}
+
 // Faz download do .docx — abre dialog de download no navegador
 export async function baixarContrato(contratoId, nomeCliente) {
     const res = await fetch(`${API_URL}/contratos/${contratoId}/download`, {
@@ -296,12 +304,22 @@ export async function getAgencias() {
     return request(`${API_URL}/agencias`)
 }
 
+export async function getAgencia(agenciaId) {
+    return request(`${API_URL}/agencias/${agenciaId}`)
+}
 
 // Cria nova agência — só nome é obrigatório, o resto pode ser editado depois
 export async function criarAgencia(dados) {
     return request(`${API_URL}/agencias`, {
         method: 'POST',
         body: JSON.stringify(dados),
+    })
+}
+
+// Deleta agência — só pode se não tiver projetos vinculados
+export async function deletarAgencia(agenciaId) {
+    return request(`${API_URL}/agencias/${agenciaId}`, {
+        method: 'DELETE',
     })
 }
 
@@ -313,10 +331,3 @@ export async function atualizarAgencia(agenciaId, dados) {
     })
 }
 
-// Agora aceita número + testemunhas juntos
-export async function atualizarContrato(contratoId, dados) {
-    return request(`${API_URL}/contratos/${contratoId}`, {
-        method: 'PATCH',
-        body: JSON.stringify(dados),
-    })
-}
