@@ -435,15 +435,6 @@ app.patch('/projetos/:id/projetista', authMiddleware, async (req, res, next) => 
     } catch (err) { next(err); }
 });
 
-// ── Retorna lista de agências ──────────────────────────────────────────────
-app.get('/agencias', authMiddleware, async (req, res, next) => {
-    try {
-        const agencias = await prisma.agencia.findMany({
-            orderBy: { nomeEmpresa: 'asc' }
-        });
-        res.json(agencias);
-    } catch (err) { next(err); }
-});
 
 // ── Retorna projetos de uma agência específica ─────────────────────────────
 app.get('/agencias/:id/projetos', authMiddleware, async (req, res, next) => {
@@ -1318,14 +1309,18 @@ app.delete('/contratos/:id', authMiddleware, async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════
 
 // ── Lista todas as agências ───────────────────────────────────────────────
-app.get('/agencias', authMiddleware, async (req, res) => {
+app.get('/agencias', authMiddleware, async (req, res, next) => {
     try {
         const agencias = await prisma.agencia.findMany({
             include: {
                 projetos: {
                     select: {
-                        id: true, nome: true, cliente: true,
-                        status: true, feira: true, local: true,
+                        id: true,
+                        nome: true,
+                        cliente: true,
+                        status: true,
+                        feira: true,
+                        local: true,
                         criadoEm: true,
                     },
                     orderBy: { criadoEm: 'desc' },
@@ -1334,7 +1329,9 @@ app.get('/agencias', authMiddleware, async (req, res) => {
             orderBy: { nomeEmpresa: 'asc' },
         })
         res.json(agencias)
-    } catch (err) { res.status(500).json({ message: err.message }) }
+    } catch (err) {
+        next(err)
+    }
 })
 
 // ── Cria nova agência ─────────────────────────────────────────────────────
