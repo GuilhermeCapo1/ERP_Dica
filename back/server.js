@@ -544,6 +544,7 @@ app.patch('/projetos/:id/resultado', authMiddleware, async (req, res, next) => {
             }
         }
 
+        //
         // Busca o orçamento aprovado — maior versão com enviado: true
         let orcamentoAprovadoId = undefined
         if (resultado === 'aprovado') {
