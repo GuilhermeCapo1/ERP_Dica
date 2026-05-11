@@ -13,6 +13,11 @@ router.get('/agencias', authMiddleware, async (req, res, next) => {
                     select: {
                         id: true, nome: true, cliente: true,
                         status: true, feira: true, local: true, criadoEm: true,
+                        contratos: {
+                            where:  { assinado: true },
+                            select: { id: true, numero: true, assinadoEm: true },
+                            take:   1,
+                        }
                     },
                     orderBy: { criadoEm: 'desc' },
                 }

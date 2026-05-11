@@ -2,56 +2,56 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
     Search, Building2, User, ChevronDown, ChevronUp,
-    Phone, Mail, MapPin, FileText, Pencil, Trash2, X, Save,
+    Phone, Mail, MapPin, FileText, Pencil, Trash2, X, FileSignature, Save,
     Briefcase,
 } from 'lucide-react'
 import * as api from '@/services/api'
 import Sidebar from '@/components/Sidebar'
 
 const STATUS_CORES = {
-    'Recebido':     'bg-blue-50 text-blue-700',
-    'Em criação':   'bg-purple-50 text-purple-700',
-    'Memorial':     'bg-red-50 text-red-700',
+    'Recebido': 'bg-blue-50 text-blue-700',
+    'Em criação': 'bg-purple-50 text-purple-700',
+    'Memorial': 'bg-red-50 text-red-700',
     'Precificação': 'bg-yellow-50 text-yellow-700',
-    'Enviado':      'bg-cyan-50 text-cyan-700',
-    'Aprovado':     'bg-green-50 text-green-700',
-    'Reprovado':    'bg-red-50 text-red-800',
+    'Enviado': 'bg-cyan-50 text-cyan-700',
+    'Aprovado': 'bg-green-50 text-green-700',
+    'Reprovado': 'bg-red-50 text-red-800',
 }
 
 // ─── Campos do formulário de cliente ──────────────────────────────────────
 const CAMPOS_CLIENTE = [
-    { name: 'nomeEmpresa',  label: 'Razão Social',  required: true,  colSpan: 2 },
-    { name: 'nomeFantasia', label: 'Nome Fantasia',  required: false, colSpan: 1 },
-    { name: 'cnpj',         label: 'CNPJ',           required: false, colSpan: 1, placeholder: '00.000.000/0000-00' },
-    { name: 'cpf',          label: 'CPF',            required: false, colSpan: 1, placeholder: '000.000.000-00' },
-    { name: 'responsavel',  label: 'Responsável',    required: false, colSpan: 1 },
-    { name: 'email',        label: 'E-mail',         required: false, colSpan: 2, type: 'email' },
-    { name: 'telefone',     label: 'Telefone',       required: false, colSpan: 1 },
-    { name: 'cep',          label: 'CEP',            required: false, colSpan: 1 },
-    { name: 'endereco',     label: 'Endereço',       required: false, colSpan: 2 },
-    { name: 'cidade',       label: 'Cidade',         required: false, colSpan: 1 },
-    { name: 'estado',       label: 'Estado',         required: false, colSpan: 1, placeholder: 'SP' },
+    { name: 'nomeEmpresa', label: 'Razão Social', required: true, colSpan: 2 },
+    { name: 'nomeFantasia', label: 'Nome Fantasia', required: false, colSpan: 1 },
+    { name: 'cnpj', label: 'CNPJ', required: false, colSpan: 1, placeholder: '00.000.000/0000-00' },
+    { name: 'cpf', label: 'CPF', required: false, colSpan: 1, placeholder: '000.000.000-00' },
+    { name: 'responsavel', label: 'Responsável', required: false, colSpan: 1 },
+    { name: 'email', label: 'E-mail', required: false, colSpan: 2, type: 'email' },
+    { name: 'telefone', label: 'Telefone', required: false, colSpan: 1 },
+    { name: 'cep', label: 'CEP', required: false, colSpan: 1 },
+    { name: 'endereco', label: 'Endereço', required: false, colSpan: 2 },
+    { name: 'cidade', label: 'Cidade', required: false, colSpan: 1 },
+    { name: 'estado', label: 'Estado', required: false, colSpan: 1, placeholder: 'SP' },
 ]
 
 // ─── Campos do formulário de agência ──────────────────────────────────────
 const CAMPOS_AGENCIA = [
-    { name: 'nomeEmpresa',  label: 'Razão Social',  required: true,  colSpan: 2 },
-    { name: 'cnpj',         label: 'CNPJ',           required: false, colSpan: 1, placeholder: '00.000.000/0000-00' },
-    { name: 'cpf',          label: 'CPF',            required: false, colSpan: 1, placeholder: '000.000.000-00' },
-    { name: 'responsavel',  label: 'Responsável',    required: false, colSpan: 1 },
-    { name: 'telefone',     label: 'Telefone',       required: false, colSpan: 1 },
-    { name: 'email',        label: 'E-mail',         required: false, colSpan: 2, type: 'email' },
-    { name: 'endereco',     label: 'Endereço',       required: false, colSpan: 2 },
-    { name: 'cidade',       label: 'Cidade',         required: false, colSpan: 1 },
-    { name: 'estado',       label: 'Estado',         required: false, colSpan: 1, placeholder: 'SP' },
-    { name: 'cep',          label: 'CEP',            required: false, colSpan: 1 },
+    { name: 'nomeEmpresa', label: 'Razão Social', required: true, colSpan: 2 },
+    { name: 'cnpj', label: 'CNPJ', required: false, colSpan: 1, placeholder: '00.000.000/0000-00' },
+    { name: 'cpf', label: 'CPF', required: false, colSpan: 1, placeholder: '000.000.000-00' },
+    { name: 'responsavel', label: 'Responsável', required: false, colSpan: 1 },
+    { name: 'telefone', label: 'Telefone', required: false, colSpan: 1 },
+    { name: 'email', label: 'E-mail', required: false, colSpan: 2, type: 'email' },
+    { name: 'endereco', label: 'Endereço', required: false, colSpan: 2 },
+    { name: 'cidade', label: 'Cidade', required: false, colSpan: 1 },
+    { name: 'estado', label: 'Estado', required: false, colSpan: 1, placeholder: 'SP' },
+    { name: 'cep', label: 'CEP', required: false, colSpan: 1 },
 ]
 
 // ─── Modal genérico de edição (serve para cliente e agência) ───────────────
 function ModalEdicao({ titulo, dados, campos, onSalvar, onFechar }) {
-    const [form, setForm]         = useState({ ...dados })
+    const [form, setForm] = useState({ ...dados })
     const [salvando, setSalvando] = useState(false)
-    const [erro, setErro]         = useState('')
+    const [erro, setErro] = useState('')
 
     function handleChange(e) {
         setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
@@ -167,7 +167,7 @@ function CardClienteCompleto({ cliente, podeEditar, podeExcluir, onEditar, onExc
 
                     <div className="grid grid-cols-2 gap-3">
                         {cliente.cnpj && <div className="flex flex-col gap-0.5"><p className="text-xs font-medium text-gray-400">CNPJ</p><p className="text-sm text-gray-700">{cliente.cnpj}</p></div>}
-                        {cliente.cpf  && <div className="flex flex-col gap-0.5"><p className="text-xs font-medium text-gray-400">CPF</p><p className="text-sm text-gray-700">{cliente.cpf}</p></div>}
+                        {cliente.cpf && <div className="flex flex-col gap-0.5"><p className="text-xs font-medium text-gray-400">CPF</p><p className="text-sm text-gray-700">{cliente.cpf}</p></div>}
                         {cliente.responsavel && <div className="flex flex-col gap-0.5"><p className="text-xs font-medium text-gray-400">Responsável</p><p className="text-sm text-gray-700">{cliente.responsavel}</p></div>}
                         {cliente.telefone && (
                             <div className="flex items-center gap-1.5">
@@ -195,24 +195,36 @@ function CardClienteCompleto({ cliente, podeEditar, podeExcluir, onEditar, onExc
                         <div>
                             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Histórico de projetos</p>
                             <div className="flex flex-col gap-2">
-                                {cliente.projetos.map(p => (
-                                    <button key={p.id} onClick={() => navigate(`/projetos/${p.id}/detalhes`)}
-                                        className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-100 hover:border-[#2D3AC2]/30 hover:bg-blue-50/30 transition-all text-left group">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <FileText size={13} className="text-gray-400 shrink-0" />
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-medium text-gray-800 truncate group-hover:text-[#2D3AC2]">{p.nome}</p>
-                                                {(p.feira || p.local) && (
-                                                    <p className="text-xs text-gray-400 truncate">{[p.feira, p.local].filter(Boolean).join(' · ')}</p>
-                                                )}
+                                {cliente.projetos.map(p => {
+                                    const contrato = p.contratos?.[0] || null
+                                    return (
+                                        <button key={p.id} onClick={() => navigate(`/projetos/${p.id}/detalhes`)}
+                                            className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-100 hover:border-[#2D3AC2]/30 hover:bg-blue-50/30 transition-all text-left group">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <FileText size={13} className="text-gray-400 shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-medium text-gray-800 truncate group-hover:text-[#2D3AC2]">{p.nome}</p>
+                                                    {(p.feira || p.local) && (
+                                                        <p className="text-xs text-gray-400 truncate">{[p.feira, p.local].filter(Boolean).join(' · ')}</p>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 shrink-0 ml-3">
-                                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_CORES[p.status] || 'bg-gray-100 text-gray-500'}`}>{p.status}</span>
-                                            <span className="text-xs text-[#2D3AC2] opacity-0 group-hover:opacity-100 transition-opacity">Ver →</span>
-                                        </div>
-                                    </button>
-                                ))}
+                                            <div className="flex items-center gap-2 shrink-0 ml-3">
+                                                {/* Badge de contrato assinado */}
+                                                {contrato && (
+                                                    <span className="flex items-center gap-1 text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                                                        <FileSignature size={10} />
+                                                        {contrato.numero ? `#${contrato.numero}` : 'Assinado'}
+                                                    </span>
+                                                )}
+                                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_CORES[p.status] || 'bg-gray-100 text-gray-500'}`}>
+                                                    {p.status}
+                                                </span>
+                                                <span className="text-xs text-[#2D3AC2] opacity-0 group-hover:opacity-100 transition-opacity">Ver →</span>
+                                            </div>
+                                        </button>
+                                    )
+                                })}
                             </div>
                         </div>
                     )}
@@ -283,7 +295,7 @@ function CardAgencia({ agencia, podeEditar, podeExcluir, onEditar, onExcluir }) 
 
                     <div className="grid grid-cols-2 gap-3">
                         {agencia.cnpj && <div className="flex flex-col gap-0.5"><p className="text-xs font-medium text-gray-400">CNPJ</p><p className="text-sm text-gray-700">{agencia.cnpj}</p></div>}
-                        {agencia.cpf  && <div className="flex flex-col gap-0.5"><p className="text-xs font-medium text-gray-400">CPF</p><p className="text-sm text-gray-700">{agencia.cpf}</p></div>}
+                        {agencia.cpf && <div className="flex flex-col gap-0.5"><p className="text-xs font-medium text-gray-400">CPF</p><p className="text-sm text-gray-700">{agencia.cpf}</p></div>}
                         {agencia.responsavel && <div className="flex flex-col gap-0.5"><p className="text-xs font-medium text-gray-400">Responsável</p><p className="text-sm text-gray-700">{agencia.responsavel}</p></div>}
                         {agencia.telefone && (
                             <div className="flex items-center gap-1.5">
@@ -312,25 +324,38 @@ function CardAgencia({ agencia, podeEditar, podeExcluir, onEditar, onExcluir }) 
                         <div>
                             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Projetos intermediados</p>
                             <div className="flex flex-col gap-2">
-                                {agencia.projetos.map(p => (
-                                    <button key={p.id} onClick={() => navigate(`/projetos/${p.id}/detalhes`)}
-                                        className="flex items-center justify-between px-3 py-2 bg-purple-50/40 rounded-lg border border-purple-100 hover:border-purple-300 hover:bg-purple-50 transition-all text-left group">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <FileText size={13} className="text-purple-400 shrink-0" />
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-medium text-gray-800 truncate group-hover:text-purple-700">{p.nome}</p>
-                                                {p.cliente && <p className="text-xs text-gray-400 truncate">Cliente: {p.cliente}</p>}
+                                {agencia.projetos.map(p => {
+                                    const contrato = p.contratos?.[0] || null
+                                    return (
+                                        <button key={p.id} onClick={() => navigate(`/projetos/${p.id}/detalhes`)}
+                                            className="flex items-center justify-between px-3 py-2 bg-purple-50/40 rounded-lg border border-purple-100 hover:border-purple-300 hover:bg-purple-50 transition-all text-left group">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <FileText size={13} className="text-purple-400 shrink-0" />
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-medium text-gray-800 truncate group-hover:text-purple-700">{p.nome}</p>
+                                                    {p.cliente && <p className="text-xs text-gray-400 truncate">Cliente: {p.cliente}</p>}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex items-center gap-2 shrink-0 ml-3">
-                                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_CORES[p.status] || 'bg-gray-100 text-gray-500'}`}>{p.status}</span>
-                                            <span className="text-xs text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity">Ver →</span>
-                                        </div>
-                                    </button>
-                                ))}
+                                            <div className="flex items-center gap-2 shrink-0 ml-3">
+                                                {/* Badge de contrato assinado */}
+                                                {contrato && (
+                                                    <span className="flex items-center gap-1 text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                                                        <FileSignature size={10} />
+                                                        {contrato.numero ? `#${contrato.numero}` : 'Assinado'}
+                                                    </span>
+                                                )}
+                                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_CORES[p.status] || 'bg-gray-100 text-gray-500'}`}>
+                                                    {p.status}
+                                                </span>
+                                                <span className="text-xs text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity">Ver →</span>
+                                            </div>
+                                        </button>
+                                    )
+                                })}
                             </div>
                         </div>
                     )}
+
                 </div>
             )}
         </div>
@@ -341,17 +366,17 @@ function CardAgencia({ agencia, podeEditar, podeExcluir, onEditar, onExcluir }) 
 // COMPONENTE PRINCIPAL
 // ══════════════════════════════════════════════════════════════════════════
 export default function Clientes() {
-    const [usuario, setUsuario]           = useState(null)
-    const [clientes, setClientes]         = useState([])
-    const [agencias, setAgencias]         = useState([])
-    const [carregando, setCarregando]     = useState(true)
-    const [busca, setBusca]               = useState('')
-    const [aba, setAba]                   = useState('clientes') // 'clientes' | 'agencias'
+    const [usuario, setUsuario] = useState(null)
+    const [clientes, setClientes] = useState([])
+    const [agencias, setAgencias] = useState([])
+    const [carregando, setCarregando] = useState(true)
+    const [busca, setBusca] = useState('')
+    const [aba, setAba] = useState('clientes') // 'clientes' | 'agencias'
     const [itemEditando, setItemEditando] = useState(null)       // { tipo: 'cliente'|'agencia', dados }
-    const [erro, setErro]                 = useState('')
+    const [erro, setErro] = useState('')
     const navigate = useNavigate()
 
-    const isGestor   = ['gerente', 'diretor'].includes(usuario?.cargo?.toLowerCase())
+    const isGestor = ['gerente', 'diretor'].includes(usuario?.cargo?.toLowerCase())
     const isVendedor = usuario?.cargo?.toLowerCase() === 'vendedor'
 
     useEffect(() => {
@@ -411,7 +436,7 @@ export default function Clientes() {
 
     // ── Filtragem ─────────────────────────────────────────────────────────
     const clientesProprios = clientes.filter(c => c.proprio !== false)
-    const clientesOutros   = clientes.filter(c => c.proprio === false)
+    const clientesOutros = clientes.filter(c => c.proprio === false)
 
     const propriosFiltrados = clientesProprios.filter(c =>
         !busca ||

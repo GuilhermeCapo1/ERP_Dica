@@ -5,6 +5,16 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 const router = Router();
 const prisma = new PrismaClient();
 
+// Select de projeto reutilizado — inclui o contrato assinado
+const SELECT_PROJETO = {
+    id: true, nome: true, status: true, criadoEm: true, feira: true, local: true,
+    contratos: {
+        where:  { assinado: true },
+        select: { id: true, numero: true, assinadoEm: true },
+        take:   1,
+    }
+}
+
 router.get('/clientes', authMiddleware, async (req, res, next) => {
     try {
         const usuario = await prisma.user.findUnique({
@@ -17,7 +27,7 @@ router.get('/clientes', authMiddleware, async (req, res, next) => {
             const clientes = await prisma.cliente.findMany({
                 include: {
                     projetos: {
-                        select: { id: true, nome: true, status: true, criadoEm: true, feira: true, local: true },
+                        select: SELECT_PROJETO,
                         orderBy: { criadoEm: 'desc' }
                     }
                 },
@@ -30,8 +40,8 @@ router.get('/clientes', authMiddleware, async (req, res, next) => {
             include: {
                 projetos: {
                     select: {
-                        id: true, nome: true, status: true, criadoEm: true,
-                        feira: true, local: true, responsavelId: true,
+                        ...SELECT_PROJETO,
+                        responsavelId: true,
                         responsavel: { select: { name: true } }
                     },
                     orderBy: { criadoEm: 'desc' }
@@ -60,7 +70,7 @@ router.get('/clientes/:id', authMiddleware, async (req, res, next) => {
             where: { id: req.params.id },
             include: {
                 projetos: {
-                    select: { id: true, nome: true, status: true, criadoEm: true, feira: true, local: true },
+                    select: SELECT_PROJETO,
                     orderBy: { criadoEm: 'desc' }
                 }
             }
