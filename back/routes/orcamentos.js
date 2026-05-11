@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.get('/projetos/:id/orcamentos', authMiddleware, async (req, res, next) => {
     try {

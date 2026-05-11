@@ -4,16 +4,17 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import 'dotenv/config';
+import prisma from './lib/prisma.js';
 
 // ── Routers ────────────────────────────────────────────────────────────────
-import authRouter      from './routes/auth.js';
-import usuariosRouter  from './routes/usuarios.js';
-import projetosRouter  from './routes/projetos.js';
-import memoriaisRouter from './routes/memoriais.js';
+import authRouter       from './routes/auth.js';
+import usuariosRouter   from './routes/usuarios.js';
+import projetosRouter   from './routes/projetos.js';
+import memoriaisRouter  from './routes/memoriais.js';
 import orcamentosRouter from './routes/orcamentos.js';
-import clientesRouter  from './routes/clientes.js';
-import contratosRouter from './routes/contratos.js';
-import agenciasRouter  from './routes/agencias.js';
+import clientesRouter   from './routes/clientes.js';
+import contratosRouter  from './routes/contratos.js';
+import agenciasRouter   from './routes/agencias.js';
 
 const app   = express();
 const isDev = process.env.NODE_ENV !== 'production';
@@ -49,11 +50,11 @@ app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
 app.use(rateLimit({
-    windowMs:       60 * 1000,
-    max:            200,
+    windowMs:        60 * 1000,
+    max:             200,
     standardHeaders: true,
-    legacyHeaders:  false,
-    message:        { message: 'Muitas requisições. Tente novamente em breve.' },
+    legacyHeaders:   false,
+    message:         { message: 'Muitas requisições. Tente novamente em breve.' },
 }));
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -84,8 +85,8 @@ app.use('/uploads', express.static('uploads', {
 app.use((err, req, res, next) => {
     if (err.name === 'MulterError') {
         const mensagens = {
-            LIMIT_FILE_SIZE:      'Arquivo muito grande. Tamanho máximo: 20MB.',
-            LIMIT_FILE_COUNT:     'Número máximo de arquivos excedido.',
+            LIMIT_FILE_SIZE:       'Arquivo muito grande. Tamanho máximo: 20MB.',
+            LIMIT_FILE_COUNT:      'Número máximo de arquivos excedido.',
             LIMIT_UNEXPECTED_FILE: 'Campo de arquivo inesperado.',
         };
         return res.status(400).json({ message: mensagens[err.code] || 'Erro no upload do arquivo.' });
@@ -107,9 +108,6 @@ app.use((err, req, res, next) => {
 // ══════════════════════════════════════════════════════════════════════════
 // GRACEFUL SHUTDOWN
 // ══════════════════════════════════════════════════════════════════════════
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
-
 process.on('SIGTERM', async () => {
     console.log('Sinal SIGTERM recebido, fechando conexões...');
     await prisma.$disconnect();

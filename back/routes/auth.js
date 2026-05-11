@@ -1,12 +1,11 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
-const prisma = new PrismaClient();
 const isDev  = process.env.NODE_ENV !== 'production';
 
 

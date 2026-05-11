@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma.js';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
@@ -9,7 +9,6 @@ import fs from 'fs';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router     = Router();
-const prisma     = new PrismaClient();
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
