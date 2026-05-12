@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Trash2, ChevronDown, RotateCcw, CheckCircle, XCircle } from 'lucide-react'
+import { Plus, Search, Trash2, ChevronDown, RotateCcw, CheckCircle, XCircle, RefreshCw } from 'lucide-react'
 import * as api from '@/services/api'
 import Sidebar from '@/components/Sidebar'
 import { temPermissao } from '@/lib/permissoes'
@@ -9,13 +9,13 @@ import { temPermissao } from '@/lib/permissoes'
 const STATUS_LISTA = ['Recebido', 'Em criação', 'Memorial', 'Precificação', 'Enviado', 'Aprovado', 'Reprovado']
 
 const STATUS_CORES = {
-    'Recebido':     { bg: 'bg-blue-500',   light: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200' },
-    'Em criação':   { bg: 'bg-purple-500', light: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-    'Memorial':     { bg: 'bg-red-500',    light: 'bg-red-50',    text: 'text-red-700',    border: 'border-red-200' },
+    'Recebido': { bg: 'bg-blue-500', light: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+    'Em criação': { bg: 'bg-purple-500', light: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+    'Memorial': { bg: 'bg-red-500', light: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
     'Precificação': { bg: 'bg-yellow-500', light: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' },
-    'Enviado':      { bg: 'bg-cyan-500',   light: 'bg-cyan-50',   text: 'text-cyan-700',   border: 'border-cyan-200' },
-    'Aprovado':     { bg: 'bg-green-500',  light: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200' },
-    'Reprovado':    { bg: 'bg-red-700',    light: 'bg-red-50',    text: 'text-red-800',    border: 'border-red-300' },
+    'Enviado': { bg: 'bg-cyan-500', light: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200' },
+    'Aprovado': { bg: 'bg-green-500', light: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
+    'Reprovado': { bg: 'bg-red-700', light: 'bg-red-50', text: 'text-red-800', border: 'border-red-300' },
 }
 
 // Status que o gerente pode selecionar para voltar
@@ -107,19 +107,21 @@ function ModalVoltarStatus({ projeto, onConfirmar, onFechar }) {
 
 // ─── Modal de Aprovação/Reprovação ─────────────────────────────────────────
 function ModalResultado({ projeto, onConfirmar, onFechar }) {
-    const [resultado, setResultado]   = useState('')
-    const [etapa, setEtapa]           = useState(1)
+    const [resultado, setResultado] = useState('')
+    const [etapa, setEtapa] = useState(1)
     // etapas: 1=resultado | 2=cliente | 3=dados cliente+condições | 4=agência? | 5=dados agência
     const [carregando, setCarregando] = useState(false)
     const [buscandoClientes, setBuscandoClientes] = useState(false)
-    const [erro, setErro]             = useState('')
+    const [erro, setErro] = useState('')
+    const [instrucoes, setInstrucoes] = useState('')
+
 
     // ── Cliente ───────────────────────────────────────────────────────────
     const [clientesExistentes, setClientesExistentes] = useState([])
-    const [modoCliente, setModoCliente]               = useState('')
+    const [modoCliente, setModoCliente] = useState('')
     const [clienteSelecionado, setClienteSelecionado] = useState(null)
-    const [buscaCliente, setBuscaCliente]             = useState('')
-    const [dadosCliente, setDadosCliente]             = useState({
+    const [buscaCliente, setBuscaCliente] = useState('')
+    const [dadosCliente, setDadosCliente] = useState({
         nomeEmpresa: projeto.cliente || '',
         nomeFantasia: '', cnpj: '', cpf: '', email: '',
         telefone: '', endereco: '', cidade: '', estado: '', cep: '', responsavel: '',
@@ -132,12 +134,12 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
     })
 
     // ── Agência ───────────────────────────────────────────────────────────
-    const [temAgencia, setTemAgencia]             = useState(null) // null | true | false
+    const [temAgencia, setTemAgencia] = useState(null) // null | true | false
     const [agenciasExistentes, setAgenciasExistentes] = useState([])
-    const [modoAgencia, setModoAgencia]           = useState('') // 'existente' | 'nova'
+    const [modoAgencia, setModoAgencia] = useState('') // 'existente' | 'nova'
     const [agenciaSelecionada, setAgenciaSelecionada] = useState(null)
-    const [buscaAgencia, setBuscaAgencia]         = useState('')
-    const [dadosAgencia, setDadosAgencia]         = useState({
+    const [buscaAgencia, setBuscaAgencia] = useState('')
+    const [dadosAgencia, setDadosAgencia] = useState({
         nomeEmpresa: '', cnpj: '', cpf: '', responsavel: '', telefone: '', email: '',
         endereco: '', cidade: '', estado: '', cep: '',
     })
@@ -214,9 +216,15 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
     async function avancarEtapa1() {
         if (!resultado) return
         if (resultado === 'reprovado') { handleSalvar(); return }
+        if (resultado === 'nova_versao') {
+            // Nova versão não precisa das etapas de cliente/agência
+            // fica na etapa 1 mas mostra o campo de instruções
+            return
+        }
         await carregarClientes()
         setEtapa(2)
     }
+
 
     function avancarEtapa2() {
         if (!modoCliente) { setErro('Selecione uma opção'); return }
@@ -271,18 +279,20 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
         setCarregando(true)
         setErro('')
         try {
-            const payload = {
-                resultado,
-                ...(resultado === 'aprovado' ? {
-                    ...dadosCliente,
-                    ...condicoes,
-                    temAgencia: !!temAgencia,
-                    agenciaId:  agenciaSelecionada?.id || null,
-                    agenciaNova: (!agenciaSelecionada && temAgencia && dadosAgencia.nomeEmpresa)
-                        ? dadosAgencia
-                        : null,
-                } : {})
-            }
+            const payload = resultado === 'nova_versao'
+                ? { resultado: 'nova_versao', instrucoes }
+                : resultado === 'reprovado'
+                    ? { resultado: 'reprovado' }
+                    : {
+                        resultado: 'aprovado',
+                        ...dadosCliente,
+                        ...condicoes,
+                        temAgencia: !!temAgencia,
+                        agenciaId: agenciaSelecionada?.id || null,
+                        agenciaNova: (!agenciaSelecionada && temAgencia && dadosAgencia.nomeEmpresa)
+                            ? dadosAgencia
+                            : null,
+                    }
             await onConfirmar(payload)
         } catch (err) {
             setErro('Erro ao salvar: ' + err.message)
@@ -322,7 +332,7 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                     <div className="flex items-center gap-2 mb-0.5">
                         {resultado === 'aprovado' && (
                             <div className="flex items-center gap-1 mr-2">
-                                {[1,2,3,4,5].map(n => (
+                                {[1, 2, 3, 4, 5].map(n => (
                                     <div key={n} className={`w-2 h-2 rounded-full transition-colors
                                         ${etapa >= n ? 'bg-[#2D3AC2]' : 'bg-gray-200'}`} />
                                 ))}
@@ -338,27 +348,62 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                     {/* ── ETAPA 1: Aprovado ou Reprovado ───────────────── */}
                     {etapa === 1 && (
                         <div className="flex flex-col gap-4">
-                            <p className="text-sm text-gray-600">O cliente aprovou ou reprovou a proposta enviada?</p>
-                            <div className="grid grid-cols-2 gap-3">
-                                <button onClick={() => setResultado('aprovado')}
+                            <p className="text-sm text-gray-600">O cliente aprovou, reprovou ou solicitou alterações?</p>
+
+                            <div className="grid grid-cols-1 gap-3">
+                                {/* Aprovado */}
+                                <button onClick={() => { setResultado('aprovado'); setInstrucoes('') }}
                                     className={`flex items-center gap-3 px-4 py-4 rounded-xl border-2 transition-all text-left
-                                        ${resultado === 'aprovado' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}>
+                    ${resultado === 'aprovado' ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300'}`}>
                                     <CheckCircle size={24} className={resultado === 'aprovado' ? 'text-green-600' : 'text-gray-300'} />
                                     <div>
                                         <p className="text-sm font-semibold text-gray-900">Aprovado</p>
-                                        <p className="text-xs text-gray-400 mt-0.5">Cliente aceitou a proposta</p>
+                                        <p className="text-xs text-gray-400 mt-0.5">Cliente aceitou a proposta — gerar contrato</p>
                                     </div>
                                 </button>
-                                <button onClick={() => setResultado('reprovado')}
+
+                                {/* Nova Versão */}
+                                <button onClick={() => { setResultado('nova_versao') }}
                                     className={`flex items-center gap-3 px-4 py-4 rounded-xl border-2 transition-all text-left
-                                        ${resultado === 'reprovado' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-red-300'}`}>
+                    ${resultado === 'nova_versao' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-orange-300'}`}>
+                                    <RefreshCw size={24} className={resultado === 'nova_versao' ? 'text-orange-600' : 'text-gray-300'} />
+                                    <div>
+                                        <p className="text-sm font-semibold text-gray-900">Nova versão</p>
+                                        <p className="text-xs text-gray-400 mt-0.5">Cliente pediu alterações — volta para criação</p>
+                                    </div>
+                                </button>
+
+                                {/* Reprovado */}
+                                <button onClick={() => { setResultado('reprovado'); setInstrucoes('') }}
+                                    className={`flex items-center gap-3 px-4 py-4 rounded-xl border-2 transition-all text-left
+                    ${resultado === 'reprovado' ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-red-300'}`}>
                                     <XCircle size={24} className={resultado === 'reprovado' ? 'text-red-600' : 'text-gray-300'} />
                                     <div>
                                         <p className="text-sm font-semibold text-gray-900">Reprovado</p>
-                                        <p className="text-xs text-gray-400 mt-0.5">Cliente recusou a proposta</p>
+                                        <p className="text-xs text-gray-400 mt-0.5">Cliente recusou definitivamente</p>
                                     </div>
                                 </button>
                             </div>
+
+                            {/* Campo de instruções — só aparece quando Nova Versão selecionada */}
+                            {resultado === 'nova_versao' && (
+                                <div className="flex flex-col gap-1.5 mt-1">
+                                    <label className="text-sm font-medium text-gray-700">
+                                        O que o cliente pediu para alterar? <span className="text-red-500">*</span>
+                                    </label>
+                                    <textarea
+                                        value={instrucoes}
+                                        onChange={e => setInstrucoes(e.target.value)}
+                                        rows={4}
+                                        placeholder="Descreva as alterações solicitadas pelo cliente..."
+                                        className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-200 resize-none transition"
+                                        autoFocus
+                                    />
+                                    <p className="text-xs text-gray-400">
+                                        Estas instruções aparecerão para o projetista na tela Meus Briefings.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -680,7 +725,14 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                     <button
                         onClick={() => {
                             setErro('')
-                            if (etapa === 1) avancarEtapa1()
+                            if (etapa === 1) {
+                                if (resultado === 'nova_versao') {
+                                    if (!instrucoes.trim()) { setErro('Descreva as alterações antes de confirmar'); return }
+                                    handleSalvar()
+                                } else {
+                                    avancarEtapa1()
+                                }
+                            }
                             else if (etapa === 2) avancarEtapa2()
                             else if (etapa === 3) avancarEtapa3()
                             else if (etapa === 4) avancarEtapa4()
@@ -688,10 +740,14 @@ function ModalResultado({ projeto, onConfirmar, onFechar }) {
                         }}
                         disabled={!resultado || carregando}
                         className={`px-5 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50
-                            ${resultado === 'reprovado' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+                            ${resultado === 'reprovado'    ? 'bg-red-600 hover:bg-red-700' :
+                              resultado === 'nova_versao'  ? 'bg-orange-500 hover:bg-orange-600' :
+                              'bg-green-600 hover:bg-green-700'}`}
                     >
                         {carregando ? 'Salvando...' :
-                         etapa === 1 ? (resultado === 'reprovado' ? 'Confirmar reprovação' : 'Próximo →') :
+                         etapa === 1 && resultado === 'nova_versao'  ? 'Confirmar revisão' :
+                         etapa === 1 && resultado === 'reprovado'    ? 'Confirmar reprovação' :
+                         etapa === 1                                 ? 'Próximo →' :
                          etapa === 2 ? (modoCliente === 'novo' ? 'Preencher dados →' : 'Próximo →') :
                          etapa === 3 ? 'Próximo →' :
                          etapa === 4 ? (temAgencia === false ? 'Confirmar aprovação' : 'Próximo →') :

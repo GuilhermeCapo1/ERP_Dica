@@ -18,6 +18,7 @@ model User {
   memoriais           Memorial[]
   orcamentos          Orcamento[]
   contratos           Contrato[]
+  revisoes            RevisaoProjeto[]
 }
 
 model Projeto {
@@ -43,6 +44,7 @@ model Projeto {
   memoriais            Memorial[]
   orcamentos           Orcamento[]
   contratos            Contrato[]
+  revisoes             RevisaoProjeto[]
   resultadoFinal       String?
   clienteId            String?         @db.ObjectId
   clienteRef           Cliente?        @relation(fields: [clienteId], references: [id])
@@ -59,13 +61,31 @@ model Projeto {
 }
 
 model ImagemProjeto {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  projetoId String   @db.ObjectId
-  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  filename  String
-  url       String
-  ordem     Int      @default(0)
-  criadoEm  DateTime @default(now())
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  projetoId  String    @db.ObjectId
+  projeto    Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+
+  // Vincula a imagem a uma versão específica do memorial.
+  // null = imagem antiga sem versão (compatibilidade retroativa).
+  memorialId String?   @db.ObjectId
+  memorial   Memorial? @relation(fields: [memorialId], references: [id], onDelete: SetNull)
+
+  filename   String
+  url        String
+  ordem      Int       @default(0)
+  criadoEm   DateTime  @default(now())
+}
+
+model RevisaoProjeto {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  projetoId   String   @db.ObjectId
+  projeto     Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+
+  versao      Int                        // versão da revisão (1, 2, 3...)
+  instrucoes  String                     // o que o cliente pediu para mudar
+  criadoPorId String?  @db.ObjectId
+  criadoPor   User?    @relation(fields: [criadoPorId], references: [id])
+  criadoEm    DateTime @default(now())
 }
 
 model Memorial {
@@ -85,6 +105,7 @@ model Memorial {
   atualizadoEm      DateTime   @updatedAt
   criadoPorId       String?    @db.ObjectId
   criadoPor         User?      @relation(fields: [criadoPorId], references: [id])
+  imagensProjeto    ImagemProjeto[]
   orcamento         Orcamento?
 }
 

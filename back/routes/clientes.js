@@ -4,7 +4,7 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
-// Select de projeto reutilizado — inclui o contrato assinado
+// Select reutilizado — projetos com contrato assinado
 const SELECT_PROJETO = {
     id: true, nome: true, status: true, criadoEm: true, feira: true, local: true,
     contratos: {
@@ -26,7 +26,7 @@ router.get('/clientes', authMiddleware, async (req, res, next) => {
             const clientes = await prisma.cliente.findMany({
                 include: {
                     projetos: {
-                        select: SELECT_PROJETO,
+                        select:  SELECT_PROJETO,
                         orderBy: { criadoEm: 'desc' }
                     }
                 },
@@ -41,7 +41,7 @@ router.get('/clientes', authMiddleware, async (req, res, next) => {
                     select: {
                         ...SELECT_PROJETO,
                         responsavelId: true,
-                        responsavel: { select: { name: true } }
+                        responsavel:   { select: { name: true } }
                     },
                     orderBy: { criadoEm: 'desc' }
                 }
@@ -66,10 +66,10 @@ router.get('/clientes', authMiddleware, async (req, res, next) => {
 router.get('/clientes/:id', authMiddleware, async (req, res, next) => {
     try {
         const cliente = await prisma.cliente.findUnique({
-            where: { id: req.params.id },
+            where:   { id: req.params.id },
             include: {
                 projetos: {
-                    select: SELECT_PROJETO,
+                    select:  SELECT_PROJETO,
                     orderBy: { criadoEm: 'desc' }
                 }
             }
@@ -85,13 +85,13 @@ router.put('/clientes/:id', authMiddleware, async (req, res, next) => {
         const [usuario, cliente] = await Promise.all([
             prisma.user.findUnique({ where: { id: req.userId }, select: { cargo: true } }),
             prisma.cliente.findUnique({
-                where: { id: req.params.id },
+                where:   { id: req.params.id },
                 include: { projetos: { select: { responsavelId: true } } }
             })
         ]);
         if (!cliente) return res.status(404).json({ message: 'Cliente não encontrado' });
 
-        const isGestor = ['gerente', 'diretor'].includes(usuario?.cargo?.toLowerCase());
+        const isGestor            = ['gerente', 'diretor'].includes(usuario?.cargo?.toLowerCase());
         const isVendedorDoCliente = cliente.projetos.some(p => p.responsavelId === req.userId);
         if (!isGestor && !isVendedorDoCliente)
             return res.status(403).json({ message: 'Sem permissão para editar este cliente' });
@@ -104,6 +104,10 @@ router.put('/clientes/:id', authMiddleware, async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
+// ── Delete com cascata de projetos ────────────────────────────────────────
+// Deleta o cliente E todos os projetos vinculados.
+// O onDelete: Cascade no schema cuida de memoriais, orçamentos,
+// imagens e contratos dentro de cada projeto automaticamente.
 router.delete('/clientes/:id', authMiddleware, async (req, res, next) => {
     try {
         const usuario = await prisma.user.findUnique({
@@ -114,12 +118,22 @@ router.delete('/clientes/:id', authMiddleware, async (req, res, next) => {
         if (!isGestor)
             return res.status(403).json({ message: 'Apenas gerente ou diretor pode excluir clientes' });
 
-        await prisma.$transaction([
-            prisma.projeto.updateMany({ where: { clienteId: req.params.id }, data: { clienteId: null } }),
-            prisma.cliente.delete({ where: { id: req.params.id } })
-        ]);
+        // Busca projetos vinculados antes de deletar
+        const projetosDoCliente = await prisma.projeto.findMany({
+            where:  { clienteId: req.params.id },
+            select: { id: true }
+        });
 
-        res.json({ message: 'Cliente excluído com sucesso' });
+        // Deleta projetos um a um — o cascade do schema cuida do resto
+        await Promise.all(
+            projetosDoCliente.map(p => prisma.projeto.delete({ where: { id: p.id } }))
+        );
+
+        await prisma.cliente.delete({ where: { id: req.params.id } });
+
+        res.json({
+            message: `Cliente excluído. ${projetosDoCliente.length} projeto(s) removido(s).`
+        });
     } catch (err) { next(err); }
 });
 

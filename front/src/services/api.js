@@ -335,3 +335,7 @@ export async function atualizarAgencia(agenciaId, dados) {
     })
 }
 
+// ── Imagens do memorial ──────────────────────────────────────────────────────
+export async function getImagensProjetoMemorial(projetoId, memorialId) {
+    return request(`${API_URL}/projetos/${projetoId}/imagens?memorialId=${memorialId}`)
+}
