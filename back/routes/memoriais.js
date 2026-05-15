@@ -13,9 +13,12 @@ router.get('/projetos/:id/memoriais', authMiddleware, async (req, res, next) => 
                     select: {
                         nome: true, cliente: true, feira: true,
                         metragem: true, datas: true, local: true,
-                        imagensProjeto: { orderBy: { ordem: 'asc' } }
+                        // ✅ NÃO traz imagensProjeto do projeto aqui —
+                        // cada memorial tem as suas próprias via relação direta
                     }
                 },
+                // ✅ Imagens vinculadas a ESTE memorial especificamente
+                imagensProjeto: { orderBy: { ordem: 'asc' } },
                 criadoPor: { select: { name: true } },
                 orcamento: true
             },
@@ -34,9 +37,10 @@ router.get('/memoriais/:id', authMiddleware, async (req, res, next) => {
                     select: {
                         nome: true, cliente: true, feira: true,
                         metragem: true, datas: true, local: true,
-                        imagensProjeto: { orderBy: { ordem: 'asc' } }
                     }
                 },
+                // ✅ Imagens vinculadas a ESTE memorial especificamente
+                imagensProjeto: { orderBy: { ordem: 'asc' } },
                 criadoPor: { select: { name: true } },
                 orcamento: true
             }

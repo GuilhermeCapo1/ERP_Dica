@@ -12,12 +12,12 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 // ─── Configuração dos 6 campos do memorial ─────────────────────────────────
 const CAMPOS_CONFIG = [
-    { key: 'piso',              label: '01 - PISO' },
-    { key: 'estrutura',         label: '02 - ESTRUTURA' },
-    { key: 'areaAtendimento',   label: '03 - Área de Atendimento' },
-    { key: 'audioVisual',       label: '04 - Áudio Visual' },
+    { key: 'piso', label: '01 - PISO' },
+    { key: 'estrutura', label: '02 - ESTRUTURA' },
+    { key: 'areaAtendimento', label: '03 - Área de Atendimento' },
+    { key: 'audioVisual', label: '04 - Áudio Visual' },
     { key: 'comunicacaoVisual', label: '05 - Comunicação Visual' },
-    { key: 'eletrica',          label: '06 - Elétrica' },
+    { key: 'eletrica', label: '06 - Elétrica' },
 ]
 
 // ─── Estado inicial dos campos ─────────────────────────────────────────────
@@ -98,14 +98,14 @@ function OrdenadorImagens({ imagens, onOrdemChange }) {
     function moverCima(index) {
         if (index === 0) return
         const nova = [...imagens]
-        ;[nova[index - 1], nova[index]] = [nova[index], nova[index - 1]]
+            ;[nova[index - 1], nova[index]] = [nova[index], nova[index - 1]]
         onOrdemChange(nova)
     }
 
     function moverBaixo(index) {
         if (index === imagens.length - 1) return
         const nova = [...imagens]
-        ;[nova[index], nova[index + 1]] = [nova[index + 1], nova[index]]
+            ;[nova[index], nova[index + 1]] = [nova[index + 1], nova[index]]
         onOrdemChange(nova)
     }
 
@@ -183,34 +183,33 @@ function EditorMemorial({ projeto, memorialExistente, onSalvar, onCancelar }) {
     useEffect(() => {
         if (memorialExistente) {
             setCampos({
-                piso:               memorialExistente.piso || '',
-                estrutura:          memorialExistente.estrutura || '',
-                areaAtendimento:    memorialExistente.areaAtendimento || '',
-                audioVisual:        memorialExistente.audioVisual || '',
-                comunicacaoVisual:  memorialExistente.comunicacaoVisual || '',
-                eletrica:           memorialExistente.eletrica || '',
+                piso: memorialExistente.piso || '',
+                estrutura: memorialExistente.estrutura || '',
+                areaAtendimento: memorialExistente.areaAtendimento || '',
+                audioVisual: memorialExistente.audioVisual || '',
+                comunicacaoVisual: memorialExistente.comunicacaoVisual || '',
+                eletrica: memorialExistente.eletrica || '',
             })
             setCamposAtivos(JSON.parse(memorialExistente.camposAtivos || '[]'))
 
-            // Ordem de imagens salva no memorial
+            // ✅ USA as imagens vinculadas a ESTE memorial (já vêm do backend)
+            const imagensDoMemorial = memorialExistente.imagensProjeto || []
             const ordemSalva = JSON.parse(memorialExistente.ordemImagens || '[]')
-            const imagensDisponiveis = projeto.imagensProjeto || []
 
             if (ordemSalva.length > 0) {
-                // Reconstrói a ordem baseado nos IDs salvos
                 const ordenadas = ordemSalva
-                    .map(id => imagensDisponiveis.find(img => img.id === id))
+                    .map(id => imagensDoMemorial.find(img => img.id === id))
                     .filter(Boolean)
-                // Adiciona imagens que não estavam na ordem salva no final
-                const naoOrdenadas = imagensDisponiveis.filter(img => !ordemSalva.includes(img.id))
+                const naoOrdenadas = imagensDoMemorial.filter(img => !ordemSalva.includes(img.id))
                 setImagens([...ordenadas, ...naoOrdenadas])
             } else {
-                setImagens(imagensDisponiveis)
+                setImagens(imagensDoMemorial)
             }
         } else {
-            setImagens(projeto.imagensProjeto || [])
+            // Novo memorial: começa sem imagens — o projetista ainda vai subir
+            setImagens([])
         }
-    }, [memorialExistente, projeto])
+    }, [memorialExistente])
 
     function toggleCampo(key) {
         setCamposAtivos(prev =>
@@ -455,7 +454,7 @@ async function gerarPDF(memorial, projeto) {
             reader.readAsDataURL(logoBlob)
         })
         doc.addImage(logoBase64, 'PNG', LARGURA / 2 + 30, 40, 70, 70)
-    } catch (e) {}
+    } catch (e) { }
 
     rodape(2)
 
@@ -672,11 +671,10 @@ export default function Memorial() {
         setGerandoPDF(true)
         setErro('')
         try {
-            // Mescla as informações do projeto atualizadas
             const projetoCompleto = {
                 ...projetoSelecionado,
-                // Garante que as imagens do projeto vêm com as do memorial
-                imagensProjeto: projetoSelecionado.imagensProjeto || [],
+                // ✅ USA as imagens deste memorial específico, não todas do projeto
+                imagensProjeto: memorial.imagensProjeto || [],
                 feira: projetoSelecionado.feira || projetoSelecionado.nome,
             }
             await gerarPDF(memorial, projetoCompleto)
@@ -816,17 +814,16 @@ export default function Memorial() {
                                                                 {CAMPOS_CONFIG.map(({ key, label }) => (
                                                                     <span
                                                                         key={key}
-                                                                        className={`text-xs px-2 py-0.5 rounded-full ${
-                                                                            camposAtivos.includes(key)
-                                                                                ? 'bg-green-50 text-green-700'
-                                                                                : 'bg-gray-100 text-gray-400 line-through'
-                                                                        }`}
+                                                                        className={`text-xs px-2 py-0.5 rounded-full ${camposAtivos.includes(key)
+                                                                            ? 'bg-green-50 text-green-700'
+                                                                            : 'bg-gray-100 text-gray-400 line-through'
+                                                                            }`}
                                                                     >
                                                                         {label.split(' - ')[0]}
                                                                     </span>
                                                                 ))}
                                                                 <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                                                                    {ordemImagens.length || projetoSelecionado.imagensProjeto?.length || 0} imagens
+                                                                    {memorial.imagensProjeto?.length || 0} imagens
                                                                 </span>
                                                             </div>
                                                         </div>
